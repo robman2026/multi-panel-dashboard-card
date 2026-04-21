@@ -214,23 +214,13 @@ const STYLES = `
     overflow: hidden;
     background: #090d1a;
     border: 1px solid rgba(255,255,255,.07);
-    min-height: 140px;
     position: relative;
     cursor: pointer;
     transition: border-color .2s;
+    min-height: 140px;
   }
   .mpd-cam-tile:hover { border-color: rgba(79,163,224,.35); }
-  .mpd-cam-stream {
-    display: block;
-    width: 100%;
-    min-height: 140px;
-  }
-  .mpd-cam-stream ha-camera-stream {
-    display: block;
-    width: 100%;
-    min-height: 140px;
-    --video-border-radius: 0;
-  }
+  mpd-cam-stream { display: block; width: 100%; }
   .mpd-cam-placeholder {
     width: 100%; height: 100%;
     display: flex;
@@ -898,20 +888,26 @@ class MultiPanelDashboardCard extends HTMLElement {
     this._built = true;
   }
 
-  // Push hass+stateObj+label+entityId into every mpd-cam-stream element
+  // Push hass+stateObj+label+entityId into every mpd-cam-stream element.
+  // Uses requestAnimationFrame to ensure custom elements are fully upgraded
+  // before property assignment — this is the critical fix for the blank feed.
   _initStreams() {
     if (!this._hass) return;
-    const cfg = this._config;
-    this.shadowRoot.querySelectorAll('mpd-cam-stream').forEach(el => {
-      const idx      = parseInt(el.dataset.idx);
-      const cam      = (cfg.cameras || [])[idx] || {};
-      const entityId = el.dataset.entity || cam.entity || '';
-      const stateObj = this._hass.states[entityId];
-      if (!stateObj) return;
-      el.hass     = this._hass;
-      el.stateObj = stateObj;
-      el.label    = cam.label || entityId;
-      el.entityId = entityId;
+    const cfg  = this._config;
+    const hass = this._hass;
+    const sr   = this.shadowRoot;
+    requestAnimationFrame(() => {
+      sr.querySelectorAll('mpd-cam-stream').forEach(el => {
+        const idx      = parseInt(el.dataset.idx);
+        const cam      = (cfg.cameras || [])[idx] || {};
+        const entityId = el.dataset.entity || cam.entity || '';
+        const stateObj = hass.states[entityId];
+        if (!stateObj) return;
+        el.hass     = hass;
+        el.stateObj = stateObj;
+        el.label    = cam.label || entityId;
+        el.entityId = entityId;
+      });
     });
   }
 
@@ -1312,10 +1308,9 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 }
 
-// Camera stream sub-element — exact same pattern as room-card RoomCardStream.
-// Uses LitElement + updated() so it only reconfigures ha-camera-stream when
-// stateObj reference actually changes, preventing the show/disappear loop on
-// slow cameras. Tapping opens the HA more-info / fullscreen dialog.
+// MpdCamStream — verbatim copy of RoomCardStream from room-card.js
+// Isolates ha-camera-stream from the parent card render cycle.
+// Only reconfigures the stream when stateObj reference actually changes.
 class MpdCamStream extends LitElement {
   static get properties() {
     return {
@@ -1335,14 +1330,12 @@ class MpdCamStream extends LitElement {
   }
 
   updated(changedProps) {
-    // Only touch ha-camera-stream when stateObj or hass has actually changed
     if (!changedProps.has('stateObj') && !changedProps.has('hass')) return;
     const stream = this.shadowRoot.querySelector('ha-camera-stream');
     if (!stream) return;
-    // Guard: skip if nothing really changed (same object reference)
-    if (stream._mpdLastStateObj === this.stateObj && stream._mpdLastHass === this.hass) return;
-    stream._mpdLastStateObj = this.stateObj;
-    stream._mpdLastHass     = this.hass;
+    if (stream._rcLastStateObj === this.stateObj && stream._rcLastHass === this.hass) return;
+    stream._rcLastStateObj = this.stateObj;
+    stream._rcLastHass     = this.hass;
     stream.hass     = this.hass;
     stream.stateObj = this.stateObj;
     if (typeof stream.requestUpdate === 'function') stream.requestUpdate();
@@ -1361,9 +1354,10 @@ class MpdCamStream extends LitElement {
           <span class="stream-label">${(this.label || '').toUpperCase()}</span>
           <div class="stream-right">
             <span class="stream-live">● LIVE</span>
-            <button class="stream-fs-btn" title="Fullscreen"
-              @click="${e => { e.stopPropagation(); this._fireMoreInfo(); }}">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+            <button class="stream-fs-btn"
+              title="Open fullscreen"
+              @click="${(e) => { e.stopPropagation(); this._fireMoreInfo(); }}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2.2"
                    stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 3 21 3 21 9"/>
@@ -1380,65 +1374,41 @@ class MpdCamStream extends LitElement {
 
   static get styles() {
     return css`
-      :host { display: block; width: 100%; }
+      :host { display: block; }
       .stream-wrap {
-        position: relative;
-        width: 100%;
-        cursor: pointer;
-        background: #090d1a;
+        position: relative; border-radius: 11px; overflow: hidden;
+        background: #0a0e1a; border: 1px solid rgba(255,255,255,0.08);
+        min-height: 140px;
       }
       ha-camera-stream {
-        display: block;
-        width: 100%;
-        min-height: 140px;
+        width: 100%; display: block;
+        max-height: 350px; object-fit: cover;
         --video-border-radius: 0;
       }
       .stream-overlay {
-        position: absolute;
-        bottom: 0; left: 0; right: 0;
-        padding: 6px 10px;
-        background: linear-gradient(transparent, rgba(0,0,0,0.65));
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        pointer-events: none;
+        position: absolute; bottom: 0; left: 0; right: 0;
+        padding: 8px 12px;
+        background: linear-gradient(transparent, rgba(0,0,0,0.6));
+        display: flex; justify-content: space-between; align-items: flex-end;
       }
-      .stream-label {
-        font-size: 8px;
-        letter-spacing: .08em;
-        color: rgba(255,255,255,.5);
-        font-family: 'DM Mono', monospace;
-      }
-      .stream-live {
-        font-size: 8px;
-        letter-spacing: .07em;
-        color: #6ddb99;
-        font-weight: 600;
-      }
-      .stream-right {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        pointer-events: all;
-      }
+      .stream-label { font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+      .stream-live  { font-size: 8px; letter-spacing: 1px; color: #6ddb99; font-weight: 600; border: 1px solid rgba(109,219,153,0.4); padding: 2px 6px; border-radius: 4px; }
+      .stream-right { display: flex; align-items: center; gap: 6px; }
+      .stream-wrap  { cursor: pointer; }
       .stream-fs-btn {
-        width: 22px; height: 22px;
-        border-radius: 5px;
-        background: rgba(255,255,255,.12);
-        border: 1px solid rgba(255,255,255,.18);
+        width: 26px; height: 26px; border-radius: 6px;
+        background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
         display: flex; align-items: center; justify-content: center;
-        cursor: pointer;
-        color: rgba(255,255,255,.75);
-        padding: 0;
-        transition: background .2s;
+        cursor: pointer; color: rgba(255,255,255,0.75);
+        transition: background 0.2s; padding: 0;
       }
-      .stream-fs-btn:hover  { background: rgba(79,163,224,.3); color: #fff; }
+      .stream-fs-btn:hover  { background: rgba(79,163,224,0.3); color: #fff; }
       .stream-fs-btn:active { transform: scale(0.92); }
     `;
   }
 }
 
-// ── Register ───────────────────────────────────────────────────────────────
+
 customElements.define('mpd-cam-stream', MpdCamStream);
 customElements.define('multi-panel-dashboard-card', MultiPanelDashboardCard);
 customElements.define('multi-panel-dashboard-card-editor', MultiPanelDashboardCardEditor);
