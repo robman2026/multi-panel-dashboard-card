@@ -214,18 +214,22 @@ const STYLES = `
     overflow: hidden;
     background: #090d1a;
     border: 1px solid rgba(255,255,255,.07);
-    aspect-ratio: 16/9;
+    min-height: 140px;
     position: relative;
     cursor: pointer;
     transition: border-color .2s;
   }
   .mpd-cam-tile:hover { border-color: rgba(79,163,224,.35); }
-  .mpd-cam-tile ha-camera-stream,
-  .mpd-cam-tile img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+  .mpd-cam-stream {
     display: block;
+    width: 100%;
+    min-height: 140px;
+  }
+  .mpd-cam-stream ha-camera-stream {
+    display: block;
+    width: 100%;
+    min-height: 140px;
+    --video-border-radius: 0;
   }
   .mpd-cam-placeholder {
     width: 100%; height: 100%;
@@ -629,15 +633,8 @@ class MultiPanelDashboardCard extends HTMLElement {
       this._render();
     } else {
       this._update();
+      this._initStreams();
     }
-  }
-
-  // ── Camera thumbnail URL from HA camera entity ────────────────────────
-  _cameraUrl(entityId) {
-    if (!entityId || !this._hass) return null;
-    const e = this._hass.states[entityId];
-    if (!e) return null;
-    return `/api/camera_proxy/${entityId}?token=${e.attributes.access_token || ''}&t=${Date.now()}`;
   }
 
   _moreInfo(entityId) {
@@ -696,12 +693,13 @@ class MultiPanelDashboardCard extends HTMLElement {
     // ── Left: Cameras ──
     const cols_cam = parseInt(cfg.cameras_columns) || 3;
     const cameras  = (cfg.cameras || []).map((cam, i) => {
-      const imgUrl = this._cameraUrl(cam.entity);
-      const iconSvg = renderIcon(cam.icon || 'camera', 'rgba(255,255,255,.25)', 22);
+      const entityId = cam.entity || '';
+      const hasEntity = entityId && this._hass && this._hass.states[entityId];
+      const iconSvg = renderIcon(cam.icon || 'camera', 'rgba(255,255,255,.25)', 28);
       return `
-        <div class="mpd-cam-tile" data-action="camera" data-entity="${cam.entity || ''}" data-idx="${i}">
-          ${imgUrl
-            ? `<img src="${imgUrl}" alt="${cam.label || ''}" loading="lazy"/>`
+        <div class="mpd-cam-tile" data-action="camera" data-entity="${entityId}" data-idx="${i}">
+          ${hasEntity
+            ? `<mpd-cam-stream data-entity="${entityId}" data-idx="${i}"></mpd-cam-stream>`
             : `<div class="mpd-cam-placeholder">${iconSvg}</div>`}
           <div class="cam-label">${cam.label || ''}</div>
           <div class="cam-live"><span class="live-dot"></span>Live</div>
@@ -902,7 +900,21 @@ class MultiPanelDashboardCard extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = this._buildHTML();
     this._attachListeners();
+    this._initStreams();
     this._built = true;
+  }
+
+  // Push hass+stateObj into every mpd-cam-stream element after DOM build
+  _initStreams() {
+    if (!this._hass) return;
+    this.shadowRoot.querySelectorAll('mpd-cam-stream').forEach(el => {
+      const entityId = el.dataset.entity;
+      const stateObj = this._hass.states[entityId];
+      if (!stateObj) return;
+      el.hass     = this._hass;
+      el.stateObj = stateObj;
+      el.label    = entityId;
+    });
   }
 
   // Patch only changed values without full re-render
@@ -1302,7 +1314,60 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 }
 
+// Camera stream sub-element — isolates ha-camera-stream from parent render cycle
+// Mirrors the room-card RoomCardStream pattern: only reconfigures when stateObj changes.
+class MpdCamStream extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._lastStateObj = null;
+    this._lastHass     = null;
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._sync();
+  }
+
+  set stateObj(stateObj) {
+    this._stateObj = stateObj;
+    this._sync();
+  }
+
+  set label(label) {
+    this._label = label;
+  }
+
+  _sync() {
+    if (!this._stateObj || !this._hass) return;
+    // Only rebuild DOM when stateObj reference changes (avoids stream restart on every hass tick)
+    if (this._stateObj === this._lastStateObj && this._hass === this._lastHass) return;
+    this._lastStateObj = this._stateObj;
+    this._lastHass     = this._hass;
+
+    // First render: create ha-camera-stream
+    if (!this._stream) {
+      this.shadowRoot.innerHTML = `
+        <style>
+          :host { display: block; width: 100%; }
+          ha-camera-stream { display: block; width: 100%; min-height: 140px; --video-border-radius: 0; }
+        </style>`;
+      this._stream = document.createElement('ha-camera-stream');
+      this._stream.setAttribute('allow-exoplayer', '');
+      this._stream.setAttribute('muted', '');
+      this._stream.setAttribute('playsinline', '');
+      this.shadowRoot.appendChild(this._stream);
+    }
+
+    // Set JS properties (not attributes) — required for Lit-based HA elements
+    this._stream.hass     = this._hass;
+    this._stream.stateObj = this._stateObj;
+    if (typeof this._stream.requestUpdate === 'function') this._stream.requestUpdate();
+  }
+}
+
 // ── Register ───────────────────────────────────────────────────────────────
+customElements.define('mpd-cam-stream', MpdCamStream);
 customElements.define('multi-panel-dashboard-card', MultiPanelDashboardCard);
 customElements.define('multi-panel-dashboard-card-editor', MultiPanelDashboardCardEditor);
 
