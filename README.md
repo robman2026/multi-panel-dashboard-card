@@ -4,7 +4,7 @@
 ![version](https://img.shields.io/badge/version-1.0.0-blue)
 ![HA](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-brightgreen)
 
-A Samsung Premium-style custom Lovelace card for Home Assistant by **robman2026**.
+A Samsung Premium-style custom Lovelace card for Home Assistant.
 
 ![Preview](preview.png)
 
