@@ -13,7 +13,12 @@
  * License: MIT
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
+// LitElement base — gives html/css tags and proper reactive rendering for editor
+const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
+const html = LitElement.prototype.html;
+const css  = LitElement.prototype.css;
+
 
 // ── MDI icon paths (inline SVG, no external dependency) ────────────────────
 const MDI = {
@@ -969,352 +974,331 @@ class MultiPanelDashboardCard extends HTMLElement {
   getCardSize() { return 8; }
 }
 
-// ── Editor ─────────────────────────────────────────────────────────────────
-// Uses DOM construction (not innerHTML) for ha-entity-picker so that
-// .hass and .value are set as JS properties — required for HA custom elements.
-class MultiPanelDashboardCardEditor extends HTMLElement {
+// Editor (LitElement — searchable dropdowns, tab layout, same pattern as room-card)
+class MultiPanelDashboardCardEditor extends LitElement {
+  static get properties() {
+    return {
+      hass:       {},
+      _config:    { state: true },
+      _search:    { state: true },
+      _activeTab: { state: true },
+    };
+  }
+
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
-    this._config = {};
-    this._hass   = null;
+    this._search    = {};
+    this._activeTab = "cameras";
   }
 
   setConfig(config) {
     this._config = { ...getStubConfig(), ...config };
-    this._render();
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    // Push hass to all already-mounted pickers
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(p => { p.hass = hass; });
+  _fire(config) {
+    const ev = new Event("config-changed", { bubbles: true, composed: true });
+    ev.detail = { config };
+    this.dispatchEvent(ev);
   }
 
-  _fire() {
-    this.dispatchEvent(new CustomEvent('config-changed', {
-      detail: { config: this._config },
-      bubbles: true, composed: true,
-    }));
+  _set(key, value) {
+    this._config = { ...this._config, [key]: value };
+    this._fire(this._config);
   }
 
-  // ── DOM helpers ────────────────────────────────────────────────────────
-
-  // Creates a label + ha-entity-picker as real DOM nodes (not innerHTML)
-  // so .hass and .value are proper JS property assignments.
-  _makePicker(labelText, currentVal, onChange) {
-    const wrap = document.createElement('div');
-    wrap.className = 'mpd-field';
-
-    const lbl = document.createElement('label');
-    lbl.textContent = labelText;
-    wrap.appendChild(lbl);
-
-    const picker = document.createElement('ha-entity-picker');
-    picker.setAttribute('allow-custom-entity', '');
-    // Set JS properties (not attributes) — this is what makes the picker work
-    if (this._hass) picker.hass = this._hass;
-    picker.value = currentVal || '';
-    picker.addEventListener('value-changed', e => {
-      onChange(e.detail.value);
-      this._fire();
-    });
-    wrap.appendChild(picker);
-    return wrap;
+  _addItem(listKey, defaults) {
+    this._set(listKey, [...(this._config[listKey] || []), defaults]);
   }
 
-  // Creates a label + ha-textfield
-  _makeText(labelText, currentVal, placeholder, onChange) {
-    const wrap = document.createElement('div');
-    wrap.className = 'mpd-field';
-
-    const lbl = document.createElement('label');
-    lbl.textContent = labelText;
-    wrap.appendChild(lbl);
-
-    const field = document.createElement('ha-textfield');
-    field.setAttribute('placeholder', placeholder || '');
-    field.value = String(currentVal !== undefined && currentVal !== null ? currentVal : '');
-    field.addEventListener('change', () => {
-      onChange(field.value);
-      this._fire();
-    });
-    wrap.appendChild(field);
-    return wrap;
+  _removeItem(listKey, idx) {
+    const list = [...(this._config[listKey] || [])];
+    list.splice(idx, 1);
+    this._set(listKey, list);
   }
 
-  // Row div
-  _row(...children) {
-    const row = document.createElement('div');
-    row.className = 'mpd-row';
-    children.forEach(c => c && row.appendChild(c));
-    return row;
+  _updateItem(listKey, idx, field, value) {
+    const list = [...(this._config[listKey] || [])];
+    list[idx] = { ...list[idx], [field]: value };
+    this._set(listKey, list);
   }
 
-  // Remove button
-  _removeBtn(onClick) {
-    const btn = document.createElement('button');
-    btn.className   = 'mpd-remove-btn';
-    btn.textContent = '✕';
-    btn.addEventListener('click', onClick);
-    return btn;
+  // Searchable entity dropdown (same pattern as room-card _renderEntitySearch)
+  _entitySearch(searchKey, currentVal, onChange, domains, placeholder) {
+    const all      = this.hass ? Object.keys(this.hass.states).sort() : [];
+    const filtered = domains && domains.length
+      ? all.filter(id => domains.some(d => id.startsWith(d + ".")))
+      : all;
+    const query   = ((this._search || {})[searchKey] || "").toLowerCase().trim();
+    const results = query ? filtered.filter(e => e.toLowerCase().includes(query)) : filtered;
+    const label   = eid => {
+      const fn = this.hass?.states[eid]?.attributes?.friendly_name;
+      return fn ? fn + "  (" + eid + ")" : eid;
+    };
+    return html`
+      <div class="search-wrap">
+        <input class="ed-input search-input" type="text"
+          placeholder="Search entities..."
+          .value="${(this._search || {})[searchKey] || ""}"
+          @input="${e => { this._search = { ...this._search, [searchKey]: e.target.value }; }}" />
+        <select class="ed-select"
+          @change="${e => { onChange(e.target.value); this._search = { ...this._search, [searchKey]: "" }; }}">
+          <option value="">${placeholder || "— select entity —"}</option>
+          ${results.slice(0, 200).map(eid => html`
+            <option value="${eid}" ?selected="${eid === currentVal}">${label(eid)}</option>
+          `)}
+          ${results.length > 200 ? html`<option disabled>...${results.length - 200} more — refine search</option>` : ""}
+        </select>
+        ${currentVal ? html`<div class="selected-badge">${currentVal}</div>` : ""}
+      </div>
+    `;
   }
 
-  // Add button
-  _addBtn(label, onClick) {
-    const btn = document.createElement('button');
-    btn.className   = 'mpd-add-btn';
-    btn.textContent = label;
-    btn.addEventListener('click', onClick);
-    return btn;
+  _txt(lbl, val, onChange, ph) {
+    return html`
+      <label class="ed-label">${lbl}</label>
+      <input class="ed-input" type="text" .value="${val || ""}" placeholder="${ph || ""}"
+        @input="${e => onChange(e.target.value)}" />
+    `;
   }
 
-  // Section heading
-  _section(emoji, title) {
-    const wrap = document.createElement('div');
-    wrap.className = 'mpd-editor-section';
-    const h = document.createElement('h4');
-    h.textContent = `${emoji} ${title}`;
-    wrap.appendChild(h);
-    return wrap;
+  _numTxt(lbl, val, onChange, ph) {
+    return html`
+      <label class="ed-label">${lbl}</label>
+      <input class="ed-input" type="number" .value="${String(val !== undefined && val !== null ? val : "")}" placeholder="${ph || ""}"
+        @input="${e => onChange(e.target.value)}" />
+    `;
   }
 
-  // ── Array item mutators ────────────────────────────────────────────────
-  _setArrField(key, idx, subkey, val) {
-    const arr = [...(this._config[key] || [])];
-    arr[idx]  = { ...arr[idx], [subkey]: val };
-    this._config = { ...this._config, [key]: arr };
-  }
-
-  _setField(key, val) {
-    this._config = { ...this._config, [key]: val };
-  }
-
-  // ── Section builders ───────────────────────────────────────────────────
-
-  _buildCameras(section) {
+  _tabCameras() {
     const cfg = this._config;
-
-    // Columns
-    section.appendChild(
-      this._makeText('Columns', cfg.cameras_columns, '3', v => this._setField('cameras_columns', v))
-    );
-
-    // Items
-    (cfg.cameras || []).forEach((cam, i) => {
-      const card = document.createElement('div');
-      card.className = 'mpd-item-card';
-
-      const row = this._row(
-        this._makePicker('Camera entity', cam.entity, v => this._setArrField('cameras', i, 'entity', v)),
-        this._makeText('Label', cam.label, 'Camera name', v => this._setArrField('cameras', i, 'label', v)),
-        this._makeText('Icon (mdi key)', cam.icon, 'camera', v => this._setArrField('cameras', i, 'icon', v)),
-        this._removeBtn(() => {
-          const arr = [...(this._config.cameras || [])];
-          arr.splice(i, 1);
-          this._config = { ...this._config, cameras: arr };
-          this._fire();
-          this._render();
-        })
-      );
-      card.appendChild(row);
-      section.appendChild(card);
-    });
-
-    section.appendChild(this._addBtn('+ Add Camera', () => {
-      const arr = [...(this._config.cameras || []), { entity: '', label: '', icon: 'camera' }];
-      this._config = { ...this._config, cameras: arr };
-      this._fire();
-      this._render();
-    }));
+    const items = cfg.cameras || [];
+    return html`
+      <div class="section">
+        <div class="sec-title">Camera grid</div>
+        ${this._numTxt("Columns", cfg.cameras_columns, v => this._set("cameras_columns", parseInt(v) || 3), "3")}
+      </div>
+      <div class="section">
+        <div class="sec-title">Cameras</div>
+        ${items.map((cam, i) => html`
+          <div class="list-item">
+            <div class="list-hdr">
+              <span class="list-num">Camera ${i + 1}</span>
+              <button class="btn-remove" @click="${() => this._removeItem("cameras", i)}">Remove</button>
+            </div>
+            <label class="ed-label">Camera entity</label>
+            ${this._entitySearch("cam_" + i, cam.entity,
+                v => this._updateItem("cameras", i, "entity", v),
+                ["camera"], "— select camera —")}
+            ${this._txt("Label", cam.label, v => this._updateItem("cameras", i, "label", v), "Camera name")}
+            ${this._txt("Icon key", cam.icon, v => this._updateItem("cameras", i, "icon", v), "camera")}
+          </div>
+        `)}
+        <button class="btn-add" @click="${() => this._addItem("cameras", { entity: "", label: "", icon: "camera" })}">+ Add Camera</button>
+      </div>
+    `;
   }
 
-  _buildSwitches(section) {
+  _tabSwitches() {
     const cfg = this._config;
-
-    section.appendChild(
-      this._makeText('Columns', cfg.switches_columns, '2', v => this._setField('switches_columns', v))
-    );
-
-    (cfg.switches || []).forEach((sw, i) => {
-      const card = document.createElement('div');
-      card.className = 'mpd-item-card';
-
-      const row = this._row(
-        this._makePicker('Switch / sensor entity', sw.entity, v => this._setArrField('switches', i, 'entity', v)),
-        this._makeText('Label', sw.label, 'Switch name', v => this._setArrField('switches', i, 'label', v)),
-        this._makeText('Icon (mdi key)', sw.icon, 'switch_icon', v => this._setArrField('switches', i, 'icon', v)),
-        this._makeText('Category', sw.category, 'switch / motion / light', v => this._setArrField('switches', i, 'category', v)),
-        this._removeBtn(() => {
-          const arr = [...(this._config.switches || [])];
-          arr.splice(i, 1);
-          this._config = { ...this._config, switches: arr };
-          this._fire();
-          this._render();
-        })
-      );
-      card.appendChild(row);
-      section.appendChild(card);
-    });
-
-    section.appendChild(this._addBtn('+ Add Switch', () => {
-      const arr = [...(this._config.switches || []), { entity: '', label: '', icon: 'switch_icon', category: 'switch' }];
-      this._config = { ...this._config, switches: arr };
-      this._fire();
-      this._render();
-    }));
+    const items = cfg.switches || [];
+    return html`
+      <div class="section">
+        <div class="sec-title">Switch grid</div>
+        ${this._numTxt("Columns", cfg.switches_columns, v => this._set("switches_columns", parseInt(v) || 2), "2")}
+      </div>
+      <div class="section">
+        <div class="sec-title">Switches</div>
+        <p class="hint">Category controls icon color and state text. Options: switch, motion, light, person, door.</p>
+        ${items.map((sw, i) => html`
+          <div class="list-item">
+            <div class="list-hdr">
+              <span class="list-num">Switch ${i + 1}</span>
+              <button class="btn-remove" @click="${() => this._removeItem("switches", i)}">Remove</button>
+            </div>
+            <label class="ed-label">Entity</label>
+            ${this._entitySearch("sw_" + i, sw.entity,
+                v => this._updateItem("switches", i, "entity", v),
+                ["switch", "light", "input_boolean", "fan", "automation", "binary_sensor"],
+                "— select entity —")}
+            ${this._txt("Label", sw.label, v => this._updateItem("switches", i, "label", v), "Switch name")}
+            ${this._txt("Icon key", sw.icon, v => this._updateItem("switches", i, "icon", v), "switch_icon")}
+            ${this._txt("Category", sw.category, v => this._updateItem("switches", i, "category", v), "switch / motion / light / door / person")}
+          </div>
+        `)}
+        <button class="btn-add" @click="${() => this._addItem("switches", { entity: "", label: "", icon: "switch_icon", category: "switch" })}">+ Add Switch</button>
+      </div>
+    `;
   }
 
-  _buildSensors(section) {
+  _tabSensors() {
     const cfg = this._config;
-
-    section.appendChild(
-      this._makeText('Columns', cfg.sensors_columns, '4', v => this._setField('sensors_columns', v))
-    );
-
-    (cfg.sensors || []).forEach((s, i) => {
-      const card = document.createElement('div');
-      card.className = 'mpd-item-card';
-
-      const row = this._row(
-        this._makePicker('Sensor entity', s.entity, v => this._setArrField('sensors', i, 'entity', v)),
-        this._makeText('Label', s.label, 'Sensor name', v => this._setArrField('sensors', i, 'label', v)),
-        this._makeText('Icon (mdi key)', s.icon, 'sensor', v => this._setArrField('sensors', i, 'icon', v)),
-        this._makeText('Category', s.category, 'door / motion / light / person', v => this._setArrField('sensors', i, 'category', v)),
-        this._removeBtn(() => {
-          const arr = [...(this._config.sensors || [])];
-          arr.splice(i, 1);
-          this._config = { ...this._config, sensors: arr };
-          this._fire();
-          this._render();
-        })
-      );
-      card.appendChild(row);
-      section.appendChild(card);
-    });
-
-    section.appendChild(this._addBtn('+ Add Sensor', () => {
-      const arr = [...(this._config.sensors || []), { entity: '', label: '', icon: 'sensor', category: 'sensor' }];
-      this._config = { ...this._config, sensors: arr };
-      this._fire();
-      this._render();
-    }));
+    const items = cfg.sensors || [];
+    return html`
+      <div class="section">
+        <div class="sec-title">Sensor grid</div>
+        ${this._numTxt("Columns", cfg.sensors_columns, v => this._set("sensors_columns", parseInt(v) || 4), "4")}
+      </div>
+      <div class="section">
+        <div class="sec-title">Sensors</div>
+        <p class="hint">Category controls state text and color. Options: door, motion, light, person, sensor.</p>
+        ${items.map((s, i) => html`
+          <div class="list-item">
+            <div class="list-hdr">
+              <span class="list-num">Sensor ${i + 1}</span>
+              <button class="btn-remove" @click="${() => this._removeItem("sensors", i)}">Remove</button>
+            </div>
+            <label class="ed-label">Entity</label>
+            ${this._entitySearch("s_" + i, s.entity,
+                v => this._updateItem("sensors", i, "entity", v),
+                ["binary_sensor", "sensor", "input_boolean", "switch", "light"],
+                "— select entity —")}
+            ${this._txt("Label", s.label, v => this._updateItem("sensors", i, "label", v), "Sensor name")}
+            ${this._txt("Icon key", s.icon, v => this._updateItem("sensors", i, "icon", v), "sensor")}
+            ${this._txt("Category", s.category, v => this._updateItem("sensors", i, "category", v), "door / motion / light / person / sensor")}
+          </div>
+        `)}
+        <button class="btn-add" @click="${() => this._addItem("sensors", { entity: "", label: "", icon: "sensor", category: "sensor" })}">+ Add Sensor</button>
+      </div>
+    `;
   }
 
-  _buildGauges(section) {
+  _tabClimate() {
     const cfg = this._config;
-
-    (cfg.gauges || []).forEach((g, i) => {
-      const card = document.createElement('div');
-      card.className = 'mpd-item-card';
-
-      // Row 1: entity pickers + label
-      const row1 = this._row(
-        this._makePicker('Temperature entity', g.temp_entity, v => this._setArrField('gauges', i, 'temp_entity', v)),
-        this._makePicker('Humidity entity', g.humidity_entity, v => this._setArrField('gauges', i, 'humidity_entity', v)),
-        this._makeText('Label', g.label, 'Room name', v => this._setArrField('gauges', i, 'label', v))
-      );
-
-      // Row 2: thresholds + size + remove
-      const row2 = this._row(
-        this._makeText('Temp thresholds (JSON)', g.temp_thresholds, '[{"max":25,"color":"#6ddb99"},...]', v => this._setArrField('gauges', i, 'temp_thresholds', v)),
-        this._makeText('Hum thresholds (JSON)', g.hum_thresholds, '[{"max":60,"color":"#6ddb99"},...]', v => this._setArrField('gauges', i, 'hum_thresholds', v)),
-        this._makeText('Gauge size (px)', g.gauge_size, '88', v => this._setArrField('gauges', i, 'gauge_size', v)),
-        this._removeBtn(() => {
-          const arr = [...(this._config.gauges || [])];
-          arr.splice(i, 1);
-          this._config = { ...this._config, gauges: arr };
-          this._fire();
-          this._render();
-        })
-      );
-
-      card.appendChild(row1);
-      card.appendChild(row2);
-      section.appendChild(card);
-    });
-
-    section.appendChild(this._addBtn('+ Add Gauge', () => {
-      const arr = [...(this._config.gauges || []), {
-        temp_entity: '', humidity_entity: '', label: '',
-        temp_thresholds: JSON.stringify(DEFAULT_THRESHOLDS.temperature),
-        hum_thresholds:  JSON.stringify(DEFAULT_THRESHOLDS.humidity),
-        gauge_size: 88,
-      }];
-      this._config = { ...this._config, gauges: arr };
-      this._fire();
-      this._render();
-    }));
+    const items = cfg.gauges || [];
+    return html`
+      <div class="section">
+        <div class="sec-title">Climate Gauges</div>
+        <p class="hint">Outer ring = temperature, inner ring = humidity. Colors driven by threshold JSON arrays.</p>
+        ${items.map((g, i) => html`
+          <div class="list-item">
+            <div class="list-hdr">
+              <span class="list-num">Gauge ${i + 1}</span>
+              <button class="btn-remove" @click="${() => this._removeItem("gauges", i)}">Remove</button>
+            </div>
+            <label class="ed-label">Temperature entity</label>
+            ${this._entitySearch("gt_" + i, g.temp_entity,
+                v => this._updateItem("gauges", i, "temp_entity", v),
+                ["sensor"], "— select temperature sensor —")}
+            <label class="ed-label">Humidity entity</label>
+            ${this._entitySearch("gh_" + i, g.humidity_entity,
+                v => this._updateItem("gauges", i, "humidity_entity", v),
+                ["sensor"], "— select humidity sensor —")}
+            ${this._txt("Label", g.label, v => this._updateItem("gauges", i, "label", v), "Room name")}
+            ${this._numTxt("Gauge size (px)", g.gauge_size, v => this._updateItem("gauges", i, "gauge_size", parseInt(v) || 88), "88")}
+            <label class="ed-label">Temp thresholds (JSON)</label>
+            <input class="ed-input mono" type="text" .value="${g.temp_thresholds || ""}"
+              placeholder='[{"max":10,"color":"#4fa3e0"},{"max":25,"color":"#6ddb99"},...]'
+              @change="${e => this._updateItem("gauges", i, "temp_thresholds", e.target.value)}" />
+            <label class="ed-label">Humidity thresholds (JSON)</label>
+            <input class="ed-input mono" type="text" .value="${g.hum_thresholds || ""}"
+              placeholder='[{"max":60,"color":"#6ddb99"},{"max":80,"color":"#e0b44f"},...]'
+              @change="${e => this._updateItem("gauges", i, "hum_thresholds", e.target.value)}" />
+          </div>
+        `)}
+        <button class="btn-add" @click="${() => this._addItem("gauges", {
+          temp_entity: "", humidity_entity: "", label: "",
+          temp_thresholds: JSON.stringify(DEFAULT_THRESHOLDS.temperature),
+          hum_thresholds:  JSON.stringify(DEFAULT_THRESHOLDS.humidity),
+          gauge_size: 88,
+        })}">+ Add Gauge</button>
+      </div>
+    `;
   }
 
-  _buildSalt(section) {
+  _tabSalt() {
     const cfg = this._config;
-
-    section.appendChild(this._row(
-      this._makePicker('Salt level entity', cfg.salt_entity, v => this._setField('salt_entity', v)),
-      this._makePicker('Salt max entity (optional)', cfg.salt_max_entity, v => this._setField('salt_max_entity', v))
-    ));
-    section.appendChild(this._row(
-      this._makeText('Label', cfg.salt_label, 'Salt Level', v => this._setField('salt_label', v)),
-      this._makeText('Warn below (%)', cfg.salt_warn_threshold, '30', v => this._setField('salt_warn_threshold', parseFloat(v) || 30))
-    ));
-    section.appendChild(
-      this._makeText('Thresholds (JSON)', cfg.salt_thresholds, '[{"max":30,"color":"#e05050"},...]', v => this._setField('salt_thresholds', v))
-    );
+    return html`
+      <div class="section">
+        <div class="sec-title">Salt Level</div>
+        <label class="ed-label">Salt level entity</label>
+        ${this._entitySearch("salt_ent", cfg.salt_entity,
+            v => this._set("salt_entity", v),
+            ["sensor"], "— select salt level sensor —")}
+        <label class="ed-label">Salt max entity (optional — used to compute %)</label>
+        ${this._entitySearch("salt_max", cfg.salt_max_entity,
+            v => this._set("salt_max_entity", v),
+            ["sensor"], "— select max sensor —")}
+        ${this._txt("Label", cfg.salt_label, v => this._set("salt_label", v), "Salt Level")}
+        ${this._numTxt("Warn below (%)", cfg.salt_warn_threshold, v => this._set("salt_warn_threshold", parseFloat(v) || 30), "30")}
+        <label class="ed-label">Thresholds (JSON)</label>
+        <input class="ed-input mono" type="text" .value="${cfg.salt_thresholds || ""}"
+          placeholder='[{"max":30,"color":"#e05050"},{"max":60,"color":"#e0b44f"},{"max":999,"color":"#6ddb99"}]'
+          @change="${e => this._set("salt_thresholds", e.target.value)}" />
+      </div>
+    `;
   }
 
-  _buildLabels(section) {
+  _tabLabels() {
     const cfg = this._config;
-    section.appendChild(this._row(
-      this._makeText('Surveillance label', cfg.label_surveillance, 'Surveillance', v => this._setField('label_surveillance', v)),
-      this._makeText('Switches label', cfg.label_switches, 'Switches', v => this._setField('label_switches', v))
-    ));
-    section.appendChild(this._row(
-      this._makeText('Sensors label', cfg.label_sensors, 'Sensors', v => this._setField('label_sensors', v)),
-      this._makeText('Climate label', cfg.label_climate, 'Temp & Humidity', v => this._setField('label_climate', v)),
-      this._makeText('Salt label', cfg.label_salt, 'Salt Level', v => this._setField('label_salt', v))
-    ));
+    return html`
+      <div class="section">
+        <div class="sec-title">Section Labels</div>
+        ${this._txt("Surveillance", cfg.label_surveillance, v => this._set("label_surveillance", v), "Surveillance")}
+        ${this._txt("Switches",     cfg.label_switches,     v => this._set("label_switches", v),     "Switches")}
+        ${this._txt("Sensors",      cfg.label_sensors,      v => this._set("label_sensors", v),      "Sensors")}
+        ${this._txt("Climate",      cfg.label_climate,      v => this._set("label_climate", v),      "Temp & Humidity")}
+        ${this._txt("Salt",         cfg.label_salt,         v => this._set("label_salt", v),         "Salt Level")}
+      </div>
+    `;
   }
 
-  // ── Main render — builds DOM, never uses innerHTML for pickers ─────────
-  _render() {
-    const sr = this.shadowRoot;
-
-    // Style + root container
-    const styleEl = document.createElement('style');
-    styleEl.textContent = STYLES;
-
-    const root = document.createElement('div');
-    root.className = 'mpd-editor';
-
-    const title = document.createElement('h3');
-    title.textContent = '🏠 Multi-Panel Dashboard Card';
-    root.appendChild(title);
-
-    const sections = [
-      { emoji: '📷', label: 'Cameras',        builder: s => this._buildCameras(s)  },
-      { emoji: '🔘', label: 'Switches',       builder: s => this._buildSwitches(s) },
-      { emoji: '📡', label: 'Sensors',        builder: s => this._buildSensors(s)  },
-      { emoji: '🌡️', label: 'Climate Gauges', builder: s => this._buildGauges(s)   },
-      { emoji: '🧂', label: 'Salt Level',     builder: s => this._buildSalt(s)     },
-      { emoji: '🏷️', label: 'Section Labels', builder: s => this._buildLabels(s)   },
+  render() {
+    if (!this._config) return html``;
+    const tabs = [
+      { id: "cameras",  label: "Cameras"  },
+      { id: "switches", label: "Switches" },
+      { id: "sensors",  label: "Sensors"  },
+      { id: "climate",  label: "Climate"  },
+      { id: "salt",     label: "Salt"     },
+      { id: "labels",   label: "Labels"   },
     ];
+    return html`
+      <div class="editor-root">
+        <div class="tab-bar">
+          ${tabs.map(t => html`
+            <button class="tab-btn ${this._activeTab === t.id ? "active" : ""}"
+              @click="${() => { this._activeTab = t.id; }}">${t.label}</button>
+          `)}
+        </div>
+        <div class="tab-content">
+          ${this._activeTab === "cameras"  ? this._tabCameras()  : ""}
+          ${this._activeTab === "switches" ? this._tabSwitches() : ""}
+          ${this._activeTab === "sensors"  ? this._tabSensors()  : ""}
+          ${this._activeTab === "climate"  ? this._tabClimate()  : ""}
+          ${this._activeTab === "salt"     ? this._tabSalt()     : ""}
+          ${this._activeTab === "labels"   ? this._tabLabels()   : ""}
+        </div>
+      </div>
+    `;
+  }
 
-    sections.forEach(({ emoji, label, builder }) => {
-      const sec = this._section(emoji, label);
-      builder(sec);
-      root.appendChild(sec);
-    });
-
-    // Replace shadow DOM content
-    sr.innerHTML = '';
-    sr.appendChild(styleEl);
-    sr.appendChild(root);
-
-    // Ensure all pickers have hass set (in case hass arrived before render)
-    if (this._hass) {
-      sr.querySelectorAll('ha-entity-picker').forEach(p => { p.hass = this._hass; });
-    }
+  static get styles() {
+    return css`
+      :host { display: block; font-family: "Segoe UI", system-ui, sans-serif; }
+      .editor-root { display: flex; flex-direction: column; }
+      .tab-bar { display: flex; flex-wrap: wrap; border-bottom: 1px solid rgba(0,0,0,0.15); background: var(--card-background-color, #1e293b); border-radius: 8px 8px 0 0; }
+      .tab-btn { flex: 1; min-width: 60px; padding: 8px 4px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; border: none; background: transparent; color: var(--secondary-text-color, #94a3b8); cursor: pointer; text-transform: uppercase; }
+      .tab-btn.active { color: var(--primary-color, #4fa3e0); border-bottom: 2px solid var(--primary-color, #4fa3e0); background: rgba(79,163,224,0.06); }
+      .tab-content { padding: 12px 4px; display: flex; flex-direction: column; gap: 4px; }
+      .section { margin-bottom: 10px; }
+      .sec-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--primary-color, #4fa3e0); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(79,163,224,0.2); }
+      .hint { font-size: 0.72rem; color: var(--secondary-text-color, #94a3b8); margin: 0 0 8px; line-height: 1.5; }
+      .ed-label { display: block; font-size: 0.7rem; font-weight: 600; color: var(--secondary-text-color, #64748b); margin-bottom: 3px; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .ed-input { width: 100%; padding: 7px 10px; font-size: 0.82rem; border: 1px solid var(--divider-color, #334155); border-radius: 6px; background: var(--secondary-background-color, #0f172a); color: var(--primary-text-color, #e2e8f0); box-sizing: border-box; }
+      .ed-input:focus { outline: none; border-color: var(--primary-color, #4fa3e0); }
+      .ed-input.mono { font-family: monospace; font-size: 0.72rem; }
+      .ed-select { width: 100%; padding: 7px 10px; font-size: 0.82rem; border: 1px solid var(--divider-color, #334155); border-radius: 6px; background: var(--secondary-background-color, #0f172a); color: var(--primary-text-color, #e2e8f0); box-sizing: border-box; cursor: pointer; margin-top: 4px; }
+      .search-wrap { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
+      .search-input { margin-bottom: 0; }
+      .selected-badge { font-size: 0.67rem; color: var(--primary-color, #4fa3e0); background: rgba(79,163,224,0.1); border-radius: 4px; padding: 2px 6px; word-break: break-all; }
+      .list-item { background: var(--secondary-background-color, rgba(0,0,0,0.2)); border: 1px solid var(--divider-color, #334155); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+      .list-hdr  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+      .list-num  { font-size: 0.72rem; font-weight: 700; color: var(--primary-color, #4fa3e0); text-transform: uppercase; letter-spacing: 0.06em; }
+      .btn-add { width: 100%; padding: 8px; font-size: 0.78rem; font-weight: 600; border: 1px dashed var(--primary-color, #4fa3e0); border-radius: 6px; background: transparent; color: var(--primary-color, #4fa3e0); cursor: pointer; }
+      .btn-add:hover { background: rgba(79,163,224,0.08); }
+      .btn-remove { padding: 3px 8px; font-size: 0.7rem; border: 1px solid #ef4444; border-radius: 4px; background: transparent; color: #ef4444; cursor: pointer; }
+      .btn-remove:hover { background: rgba(239,68,68,0.1); }
+    `;
   }
 }
 
