@@ -701,13 +701,7 @@ class MultiPanelDashboardCard extends HTMLElement {
           ${hasEntity
             ? `<mpd-cam-stream data-entity="${entityId}" data-idx="${i}"></mpd-cam-stream>`
             : `<div class="mpd-cam-placeholder">${iconSvg}</div>`}
-          <div class="cam-label">${cam.label || ''}</div>
-          <div class="cam-live"><span class="live-dot"></span>Live</div>
-          <div class="cam-expand">
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2.2" stroke-linecap="round">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-            </svg>
-          </div>
+          ${!hasEntity ? `<div class="cam-label">${cam.label || ''}</div>` : ''}
         </div>`;
     }).join('');
 
@@ -904,16 +898,20 @@ class MultiPanelDashboardCard extends HTMLElement {
     this._built = true;
   }
 
-  // Push hass+stateObj into every mpd-cam-stream element after DOM build
+  // Push hass+stateObj+label+entityId into every mpd-cam-stream element
   _initStreams() {
     if (!this._hass) return;
+    const cfg = this._config;
     this.shadowRoot.querySelectorAll('mpd-cam-stream').forEach(el => {
-      const entityId = el.dataset.entity;
+      const idx      = parseInt(el.dataset.idx);
+      const cam      = (cfg.cameras || [])[idx] || {};
+      const entityId = el.dataset.entity || cam.entity || '';
       const stateObj = this._hass.states[entityId];
       if (!stateObj) return;
       el.hass     = this._hass;
       el.stateObj = stateObj;
-      el.label    = entityId;
+      el.label    = cam.label || entityId;
+      el.entityId = entityId;
     });
   }
 
@@ -1314,55 +1312,129 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 }
 
-// Camera stream sub-element — isolates ha-camera-stream from parent render cycle
-// Mirrors the room-card RoomCardStream pattern: only reconfigures when stateObj changes.
-class MpdCamStream extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    this._lastStateObj = null;
-    this._lastHass     = null;
+// Camera stream sub-element — exact same pattern as room-card RoomCardStream.
+// Uses LitElement + updated() so it only reconfigures ha-camera-stream when
+// stateObj reference actually changes, preventing the show/disappear loop on
+// slow cameras. Tapping opens the HA more-info / fullscreen dialog.
+class MpdCamStream extends LitElement {
+  static get properties() {
+    return {
+      hass:     {},
+      stateObj: {},
+      label:    {},
+      entityId: {},
+    };
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._sync();
+  _fireMoreInfo() {
+    if (!this.entityId) return;
+    this.dispatchEvent(new CustomEvent('hass-more-info', {
+      bubbles: true, composed: true,
+      detail: { entityId: this.entityId },
+    }));
   }
 
-  set stateObj(stateObj) {
-    this._stateObj = stateObj;
-    this._sync();
+  updated(changedProps) {
+    // Only touch ha-camera-stream when stateObj or hass has actually changed
+    if (!changedProps.has('stateObj') && !changedProps.has('hass')) return;
+    const stream = this.shadowRoot.querySelector('ha-camera-stream');
+    if (!stream) return;
+    // Guard: skip if nothing really changed (same object reference)
+    if (stream._mpdLastStateObj === this.stateObj && stream._mpdLastHass === this.hass) return;
+    stream._mpdLastStateObj = this.stateObj;
+    stream._mpdLastHass     = this.hass;
+    stream.hass     = this.hass;
+    stream.stateObj = this.stateObj;
+    if (typeof stream.requestUpdate === 'function') stream.requestUpdate();
   }
 
-  set label(label) {
-    this._label = label;
+  render() {
+    if (!this.stateObj) return html``;
+    return html`
+      <div class="stream-wrap" @click="${() => this._fireMoreInfo()}">
+        <ha-camera-stream
+          allow-exoplayer
+          muted
+          playsinline
+        ></ha-camera-stream>
+        <div class="stream-overlay">
+          <span class="stream-label">${(this.label || '').toUpperCase()}</span>
+          <div class="stream-right">
+            <span class="stream-live">● LIVE</span>
+            <button class="stream-fs-btn" title="Fullscreen"
+              @click="${e => { e.stopPropagation(); this._fireMoreInfo(); }}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 3 21 3 21 9"/>
+                <polyline points="9 21 3 21 3 15"/>
+                <line x1="21" y1="3" x2="14" y2="10"/>
+                <line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
-  _sync() {
-    if (!this._stateObj || !this._hass) return;
-    // Only rebuild DOM when stateObj reference changes (avoids stream restart on every hass tick)
-    if (this._stateObj === this._lastStateObj && this._hass === this._lastHass) return;
-    this._lastStateObj = this._stateObj;
-    this._lastHass     = this._hass;
-
-    // First render: create ha-camera-stream
-    if (!this._stream) {
-      this.shadowRoot.innerHTML = `
-        <style>
-          :host { display: block; width: 100%; }
-          ha-camera-stream { display: block; width: 100%; min-height: 140px; --video-border-radius: 0; }
-        </style>`;
-      this._stream = document.createElement('ha-camera-stream');
-      this._stream.setAttribute('allow-exoplayer', '');
-      this._stream.setAttribute('muted', '');
-      this._stream.setAttribute('playsinline', '');
-      this.shadowRoot.appendChild(this._stream);
-    }
-
-    // Set JS properties (not attributes) — required for Lit-based HA elements
-    this._stream.hass     = this._hass;
-    this._stream.stateObj = this._stateObj;
-    if (typeof this._stream.requestUpdate === 'function') this._stream.requestUpdate();
+  static get styles() {
+    return css`
+      :host { display: block; width: 100%; }
+      .stream-wrap {
+        position: relative;
+        width: 100%;
+        cursor: pointer;
+        background: #090d1a;
+      }
+      ha-camera-stream {
+        display: block;
+        width: 100%;
+        min-height: 140px;
+        --video-border-radius: 0;
+      }
+      .stream-overlay {
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        padding: 6px 10px;
+        background: linear-gradient(transparent, rgba(0,0,0,0.65));
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        pointer-events: none;
+      }
+      .stream-label {
+        font-size: 8px;
+        letter-spacing: .08em;
+        color: rgba(255,255,255,.5);
+        font-family: 'DM Mono', monospace;
+      }
+      .stream-live {
+        font-size: 8px;
+        letter-spacing: .07em;
+        color: #6ddb99;
+        font-weight: 600;
+      }
+      .stream-right {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        pointer-events: all;
+      }
+      .stream-fs-btn {
+        width: 22px; height: 22px;
+        border-radius: 5px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        color: rgba(255,255,255,.75);
+        padding: 0;
+        transition: background .2s;
+      }
+      .stream-fs-btn:hover  { background: rgba(79,163,224,.3); color: #fff; }
+      .stream-fs-btn:active { transform: scale(0.92); }
+    `;
   }
 }
 
