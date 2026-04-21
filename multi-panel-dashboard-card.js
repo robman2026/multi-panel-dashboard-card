@@ -970,6 +970,8 @@ class MultiPanelDashboardCard extends HTMLElement {
 }
 
 // ── Editor ─────────────────────────────────────────────────────────────────
+// Uses DOM construction (not innerHTML) for ha-entity-picker so that
+// .hass and .value are set as JS properties — required for HA custom elements.
 class MultiPanelDashboardCardEditor extends HTMLElement {
   constructor() {
     super();
@@ -985,6 +987,7 @@ class MultiPanelDashboardCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // Push hass to all already-mounted pickers
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(p => { p.hass = hass; });
   }
 
@@ -995,215 +998,323 @@ class MultiPanelDashboardCardEditor extends HTMLElement {
     }));
   }
 
-  _entityPicker(key, label, subkey, idx) {
-    const val = idx !== undefined
-      ? ((this._config[key] || [])[idx] || {})[subkey] || ''
-      : this._config[subkey] || '';
-    return `
-      <div class="mpd-field">
-        <label>${label}</label>
-        <ha-entity-picker
-          data-key="${key}" data-subkey="${subkey}" data-idx="${idx !== undefined ? idx : -1}"
-          .value="${val}" allow-custom-entity
-        ></ha-entity-picker>
-      </div>`;
+  // ── DOM helpers ────────────────────────────────────────────────────────
+
+  // Creates a label + ha-entity-picker as real DOM nodes (not innerHTML)
+  // so .hass and .value are proper JS property assignments.
+  _makePicker(labelText, currentVal, onChange) {
+    const wrap = document.createElement('div');
+    wrap.className = 'mpd-field';
+
+    const lbl = document.createElement('label');
+    lbl.textContent = labelText;
+    wrap.appendChild(lbl);
+
+    const picker = document.createElement('ha-entity-picker');
+    picker.setAttribute('allow-custom-entity', '');
+    // Set JS properties (not attributes) — this is what makes the picker work
+    if (this._hass) picker.hass = this._hass;
+    picker.value = currentVal || '';
+    picker.addEventListener('value-changed', e => {
+      onChange(e.detail.value);
+      this._fire();
+    });
+    wrap.appendChild(picker);
+    return wrap;
   }
 
-  _textField(key, label, subkey, idx, placeholder) {
-    const val = idx !== undefined
-      ? ((this._config[key] || [])[idx] || {})[subkey] || ''
-      : this._config[subkey] !== undefined ? this._config[subkey] : (this._config[key] || '');
-    return `
-      <div class="mpd-field">
-        <label>${label}</label>
-        <ha-textfield
-          data-key="${key}" data-subkey="${subkey !== undefined ? subkey : ''}" data-idx="${idx !== undefined ? idx : -1}"
-          .value="${val}" placeholder="${placeholder || ''}"
-        ></ha-textfield>
-      </div>`;
+  // Creates a label + ha-textfield
+  _makeText(labelText, currentVal, placeholder, onChange) {
+    const wrap = document.createElement('div');
+    wrap.className = 'mpd-field';
+
+    const lbl = document.createElement('label');
+    lbl.textContent = labelText;
+    wrap.appendChild(lbl);
+
+    const field = document.createElement('ha-textfield');
+    field.setAttribute('placeholder', placeholder || '');
+    field.value = String(currentVal !== undefined && currentVal !== null ? currentVal : '');
+    field.addEventListener('change', () => {
+      onChange(field.value);
+      this._fire();
+    });
+    wrap.appendChild(field);
+    return wrap;
   }
 
-  _render() {
+  // Row div
+  _row(...children) {
+    const row = document.createElement('div');
+    row.className = 'mpd-row';
+    children.forEach(c => c && row.appendChild(c));
+    return row;
+  }
+
+  // Remove button
+  _removeBtn(onClick) {
+    const btn = document.createElement('button');
+    btn.className   = 'mpd-remove-btn';
+    btn.textContent = '✕';
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  // Add button
+  _addBtn(label, onClick) {
+    const btn = document.createElement('button');
+    btn.className   = 'mpd-add-btn';
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  // Section heading
+  _section(emoji, title) {
+    const wrap = document.createElement('div');
+    wrap.className = 'mpd-editor-section';
+    const h = document.createElement('h4');
+    h.textContent = `${emoji} ${title}`;
+    wrap.appendChild(h);
+    return wrap;
+  }
+
+  // ── Array item mutators ────────────────────────────────────────────────
+  _setArrField(key, idx, subkey, val) {
+    const arr = [...(this._config[key] || [])];
+    arr[idx]  = { ...arr[idx], [subkey]: val };
+    this._config = { ...this._config, [key]: arr };
+  }
+
+  _setField(key, val) {
+    this._config = { ...this._config, [key]: val };
+  }
+
+  // ── Section builders ───────────────────────────────────────────────────
+
+  _buildCameras(section) {
     const cfg = this._config;
 
-    const cameraItems = (cfg.cameras || []).map((cam, i) => `
-      <div class="mpd-item-card">
-        <div class="mpd-row">
-          ${this._entityPicker('cameras', 'Camera entity', 'entity', i)}
-          ${this._textField('cameras', 'Label', 'label', i, 'Camera name')}
-          ${this._textField('cameras', 'Icon (mdi key)', 'icon', i, 'camera')}
-          <button class="mpd-remove-btn" data-remove="cameras" data-idx="${i}">✕</button>
-        </div>
-      </div>`).join('');
+    // Columns
+    section.appendChild(
+      this._makeText('Columns', cfg.cameras_columns, '3', v => this._setField('cameras_columns', v))
+    );
 
-    const switchItems = (cfg.switches || []).map((sw, i) => `
-      <div class="mpd-item-card">
-        <div class="mpd-row">
-          ${this._entityPicker('switches', 'Switch entity', 'entity', i)}
-          ${this._textField('switches', 'Label', 'label', i, 'Switch name')}
-          ${this._textField('switches', 'Icon (mdi key)', 'icon', i, 'switch_icon')}
-          ${this._textField('switches', 'Category', 'category', i, 'switch/motion/light')}
-          <button class="mpd-remove-btn" data-remove="switches" data-idx="${i}">✕</button>
-        </div>
-      </div>`).join('');
+    // Items
+    (cfg.cameras || []).forEach((cam, i) => {
+      const card = document.createElement('div');
+      card.className = 'mpd-item-card';
 
-    const sensorItems = (cfg.sensors || []).map((s, i) => `
-      <div class="mpd-item-card">
-        <div class="mpd-row">
-          ${this._entityPicker('sensors', 'Sensor entity', 'entity', i)}
-          ${this._textField('sensors', 'Label', 'label', i, 'Sensor name')}
-          ${this._textField('sensors', 'Icon (mdi key)', 'icon', i, 'sensor')}
-          ${this._textField('sensors', 'Category', 'category', i, 'door/motion/light/person')}
-          <button class="mpd-remove-btn" data-remove="sensors" data-idx="${i}">✕</button>
-        </div>
-      </div>`).join('');
+      const row = this._row(
+        this._makePicker('Camera entity', cam.entity, v => this._setArrField('cameras', i, 'entity', v)),
+        this._makeText('Label', cam.label, 'Camera name', v => this._setArrField('cameras', i, 'label', v)),
+        this._makeText('Icon (mdi key)', cam.icon, 'camera', v => this._setArrField('cameras', i, 'icon', v)),
+        this._removeBtn(() => {
+          const arr = [...(this._config.cameras || [])];
+          arr.splice(i, 1);
+          this._config = { ...this._config, cameras: arr };
+          this._fire();
+          this._render();
+        })
+      );
+      card.appendChild(row);
+      section.appendChild(card);
+    });
 
-    const gaugeItems = (cfg.gauges || []).map((g, i) => `
-      <div class="mpd-item-card">
-        <div class="mpd-row">
-          ${this._entityPicker('gauges', 'Temp entity', 'temp_entity', i)}
-          ${this._entityPicker('gauges', 'Humidity entity', 'humidity_entity', i)}
-          ${this._textField('gauges', 'Label', 'label', i, 'Room name')}
-        </div>
-        <div class="mpd-row">
-          ${this._textField('gauges', 'Temp thresholds (JSON)', 'temp_thresholds', i, '[{"max":10,"color":"#4fa3e0"},...]')}
-          ${this._textField('gauges', 'Hum thresholds (JSON)', 'hum_thresholds', i, '[{"max":60,"color":"#6ddb99"},...]')}
-          ${this._textField('gauges', 'Gauge size (px)', 'gauge_size', i, '88')}
-          <button class="mpd-remove-btn" data-remove="gauges" data-idx="${i}">✕</button>
-        </div>
-      </div>`).join('');
+    section.appendChild(this._addBtn('+ Add Camera', () => {
+      const arr = [...(this._config.cameras || []), { entity: '', label: '', icon: 'camera' }];
+      this._config = { ...this._config, cameras: arr };
+      this._fire();
+      this._render();
+    }));
+  }
 
-    this.shadowRoot.innerHTML = `
-      <style>${STYLES}</style>
-      <div class="mpd-editor">
-        <h3>🏠 Multi-Panel Dashboard Card</h3>
+  _buildSwitches(section) {
+    const cfg = this._config;
 
-        <div class="mpd-editor-section">
-          <h4>📷 Cameras</h4>
-          ${this._textField('cameras_columns', 'Columns', undefined, undefined, '3')}
-          ${cameraItems}
-          <button class="mpd-add-btn" data-add="cameras">+ Add Camera</button>
-        </div>
+    section.appendChild(
+      this._makeText('Columns', cfg.switches_columns, '2', v => this._setField('switches_columns', v))
+    );
 
-        <div class="mpd-editor-section">
-          <h4>🔘 Switches</h4>
-          ${this._textField('switches_columns', 'Columns', undefined, undefined, '2')}
-          ${switchItems}
-          <button class="mpd-add-btn" data-add="switches">+ Add Switch</button>
-        </div>
+    (cfg.switches || []).forEach((sw, i) => {
+      const card = document.createElement('div');
+      card.className = 'mpd-item-card';
 
-        <div class="mpd-editor-section">
-          <h4>📡 Sensors</h4>
-          ${this._textField('sensors_columns', 'Columns', undefined, undefined, '4')}
-          ${sensorItems}
-          <button class="mpd-add-btn" data-add="sensors">+ Add Sensor</button>
-        </div>
+      const row = this._row(
+        this._makePicker('Switch / sensor entity', sw.entity, v => this._setArrField('switches', i, 'entity', v)),
+        this._makeText('Label', sw.label, 'Switch name', v => this._setArrField('switches', i, 'label', v)),
+        this._makeText('Icon (mdi key)', sw.icon, 'switch_icon', v => this._setArrField('switches', i, 'icon', v)),
+        this._makeText('Category', sw.category, 'switch / motion / light', v => this._setArrField('switches', i, 'category', v)),
+        this._removeBtn(() => {
+          const arr = [...(this._config.switches || [])];
+          arr.splice(i, 1);
+          this._config = { ...this._config, switches: arr };
+          this._fire();
+          this._render();
+        })
+      );
+      card.appendChild(row);
+      section.appendChild(card);
+    });
 
-        <div class="mpd-editor-section">
-          <h4>🌡️ Climate Gauges</h4>
-          ${gaugeItems}
-          <button class="mpd-add-btn" data-add="gauges">+ Add Gauge</button>
-        </div>
+    section.appendChild(this._addBtn('+ Add Switch', () => {
+      const arr = [...(this._config.switches || []), { entity: '', label: '', icon: 'switch_icon', category: 'switch' }];
+      this._config = { ...this._config, switches: arr };
+      this._fire();
+      this._render();
+    }));
+  }
 
-        <div class="mpd-editor-section">
-          <h4>🧂 Salt Level</h4>
-          <div class="mpd-row">
-            ${this._entityPicker('salt', 'Salt level entity', 'salt_entity')}
-            ${this._entityPicker('salt', 'Salt max entity (optional)', 'salt_max_entity')}
-          </div>
-          <div class="mpd-row">
-            ${this._textField('salt_label', 'Label', undefined, undefined, 'Salt Level')}
-            ${this._textField('salt_warn_threshold', 'Warn below (%)', undefined, undefined, '30')}
-          </div>
-          ${this._textField('salt_thresholds', 'Thresholds (JSON)', undefined, undefined, '[{"max":30,"color":"#e05050"},...]')}
-        </div>
+  _buildSensors(section) {
+    const cfg = this._config;
 
-        <div class="mpd-editor-section">
-          <h4>🏷️ Section Labels</h4>
-          <div class="mpd-row">
-            ${this._textField('label_surveillance', 'Surveillance label', undefined, undefined, 'Surveillance')}
-            ${this._textField('label_switches', 'Switches label', undefined, undefined, 'Switches')}
-          </div>
-          <div class="mpd-row">
-            ${this._textField('label_sensors', 'Sensors label', undefined, undefined, 'Sensors')}
-            ${this._textField('label_climate', 'Climate label', undefined, undefined, 'Temp & Humidity')}
-            ${this._textField('label_salt', 'Salt label', undefined, undefined, 'Salt Level')}
-          </div>
-        </div>
-      </div>`;
+    section.appendChild(
+      this._makeText('Columns', cfg.sensors_columns, '4', v => this._setField('sensors_columns', v))
+    );
 
+    (cfg.sensors || []).forEach((s, i) => {
+      const card = document.createElement('div');
+      card.className = 'mpd-item-card';
+
+      const row = this._row(
+        this._makePicker('Sensor entity', s.entity, v => this._setArrField('sensors', i, 'entity', v)),
+        this._makeText('Label', s.label, 'Sensor name', v => this._setArrField('sensors', i, 'label', v)),
+        this._makeText('Icon (mdi key)', s.icon, 'sensor', v => this._setArrField('sensors', i, 'icon', v)),
+        this._makeText('Category', s.category, 'door / motion / light / person', v => this._setArrField('sensors', i, 'category', v)),
+        this._removeBtn(() => {
+          const arr = [...(this._config.sensors || [])];
+          arr.splice(i, 1);
+          this._config = { ...this._config, sensors: arr };
+          this._fire();
+          this._render();
+        })
+      );
+      card.appendChild(row);
+      section.appendChild(card);
+    });
+
+    section.appendChild(this._addBtn('+ Add Sensor', () => {
+      const arr = [...(this._config.sensors || []), { entity: '', label: '', icon: 'sensor', category: 'sensor' }];
+      this._config = { ...this._config, sensors: arr };
+      this._fire();
+      this._render();
+    }));
+  }
+
+  _buildGauges(section) {
+    const cfg = this._config;
+
+    (cfg.gauges || []).forEach((g, i) => {
+      const card = document.createElement('div');
+      card.className = 'mpd-item-card';
+
+      // Row 1: entity pickers + label
+      const row1 = this._row(
+        this._makePicker('Temperature entity', g.temp_entity, v => this._setArrField('gauges', i, 'temp_entity', v)),
+        this._makePicker('Humidity entity', g.humidity_entity, v => this._setArrField('gauges', i, 'humidity_entity', v)),
+        this._makeText('Label', g.label, 'Room name', v => this._setArrField('gauges', i, 'label', v))
+      );
+
+      // Row 2: thresholds + size + remove
+      const row2 = this._row(
+        this._makeText('Temp thresholds (JSON)', g.temp_thresholds, '[{"max":25,"color":"#6ddb99"},...]', v => this._setArrField('gauges', i, 'temp_thresholds', v)),
+        this._makeText('Hum thresholds (JSON)', g.hum_thresholds, '[{"max":60,"color":"#6ddb99"},...]', v => this._setArrField('gauges', i, 'hum_thresholds', v)),
+        this._makeText('Gauge size (px)', g.gauge_size, '88', v => this._setArrField('gauges', i, 'gauge_size', v)),
+        this._removeBtn(() => {
+          const arr = [...(this._config.gauges || [])];
+          arr.splice(i, 1);
+          this._config = { ...this._config, gauges: arr };
+          this._fire();
+          this._render();
+        })
+      );
+
+      card.appendChild(row1);
+      card.appendChild(row2);
+      section.appendChild(card);
+    });
+
+    section.appendChild(this._addBtn('+ Add Gauge', () => {
+      const arr = [...(this._config.gauges || []), {
+        temp_entity: '', humidity_entity: '', label: '',
+        temp_thresholds: JSON.stringify(DEFAULT_THRESHOLDS.temperature),
+        hum_thresholds:  JSON.stringify(DEFAULT_THRESHOLDS.humidity),
+        gauge_size: 88,
+      }];
+      this._config = { ...this._config, gauges: arr };
+      this._fire();
+      this._render();
+    }));
+  }
+
+  _buildSalt(section) {
+    const cfg = this._config;
+
+    section.appendChild(this._row(
+      this._makePicker('Salt level entity', cfg.salt_entity, v => this._setField('salt_entity', v)),
+      this._makePicker('Salt max entity (optional)', cfg.salt_max_entity, v => this._setField('salt_max_entity', v))
+    ));
+    section.appendChild(this._row(
+      this._makeText('Label', cfg.salt_label, 'Salt Level', v => this._setField('salt_label', v)),
+      this._makeText('Warn below (%)', cfg.salt_warn_threshold, '30', v => this._setField('salt_warn_threshold', parseFloat(v) || 30))
+    ));
+    section.appendChild(
+      this._makeText('Thresholds (JSON)', cfg.salt_thresholds, '[{"max":30,"color":"#e05050"},...]', v => this._setField('salt_thresholds', v))
+    );
+  }
+
+  _buildLabels(section) {
+    const cfg = this._config;
+    section.appendChild(this._row(
+      this._makeText('Surveillance label', cfg.label_surveillance, 'Surveillance', v => this._setField('label_surveillance', v)),
+      this._makeText('Switches label', cfg.label_switches, 'Switches', v => this._setField('label_switches', v))
+    ));
+    section.appendChild(this._row(
+      this._makeText('Sensors label', cfg.label_sensors, 'Sensors', v => this._setField('label_sensors', v)),
+      this._makeText('Climate label', cfg.label_climate, 'Temp & Humidity', v => this._setField('label_climate', v)),
+      this._makeText('Salt label', cfg.label_salt, 'Salt Level', v => this._setField('label_salt', v))
+    ));
+  }
+
+  // ── Main render — builds DOM, never uses innerHTML for pickers ─────────
+  _render() {
+    const sr = this.shadowRoot;
+
+    // Style + root container
+    const styleEl = document.createElement('style');
+    styleEl.textContent = STYLES;
+
+    const root = document.createElement('div');
+    root.className = 'mpd-editor';
+
+    const title = document.createElement('h3');
+    title.textContent = '🏠 Multi-Panel Dashboard Card';
+    root.appendChild(title);
+
+    const sections = [
+      { emoji: '📷', label: 'Cameras',        builder: s => this._buildCameras(s)  },
+      { emoji: '🔘', label: 'Switches',       builder: s => this._buildSwitches(s) },
+      { emoji: '📡', label: 'Sensors',        builder: s => this._buildSensors(s)  },
+      { emoji: '🌡️', label: 'Climate Gauges', builder: s => this._buildGauges(s)   },
+      { emoji: '🧂', label: 'Salt Level',     builder: s => this._buildSalt(s)     },
+      { emoji: '🏷️', label: 'Section Labels', builder: s => this._buildLabels(s)   },
+    ];
+
+    sections.forEach(({ emoji, label, builder }) => {
+      const sec = this._section(emoji, label);
+      builder(sec);
+      root.appendChild(sec);
+    });
+
+    // Replace shadow DOM content
+    sr.innerHTML = '';
+    sr.appendChild(styleEl);
+    sr.appendChild(root);
+
+    // Ensure all pickers have hass set (in case hass arrived before render)
     if (this._hass) {
-      this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(p => { p.hass = this._hass; });
+      sr.querySelectorAll('ha-entity-picker').forEach(p => { p.hass = this._hass; });
     }
-
-    // Entity picker changes
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(p => {
-      p.addEventListener('value-changed', e => {
-        const key    = p.dataset.key;
-        const subkey = p.dataset.subkey;
-        const idx    = parseInt(p.dataset.idx);
-        const val    = e.detail.value;
-        if (idx >= 0) {
-          const arr = [...(this._config[key] || [])];
-          arr[idx]  = { ...arr[idx], [subkey]: val };
-          this._config = { ...this._config, [key]: arr };
-        } else {
-          this._config = { ...this._config, [subkey]: val };
-        }
-        this._fire();
-      });
-    });
-
-    // Text field changes
-    this.shadowRoot.querySelectorAll('ha-textfield').forEach(f => {
-      f.addEventListener('change', e => {
-        const key    = f.dataset.key;
-        const subkey = f.dataset.subkey;
-        const idx    = parseInt(f.dataset.idx);
-        const val    = f.value;
-        if (idx >= 0 && subkey) {
-          const arr = [...(this._config[key] || [])];
-          arr[idx]  = { ...arr[idx], [subkey]: val };
-          this._config = { ...this._config, [key]: arr };
-        } else {
-          this._config = { ...this._config, [key]: val };
-        }
-        this._fire();
-      });
-    });
-
-    // Add buttons
-    this.shadowRoot.querySelectorAll('[data-add]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key  = btn.dataset.add;
-        const defs = {
-          cameras:  { entity: '', label: '', icon: 'camera' },
-          switches: { entity: '', label: '', icon: 'switch_icon', category: 'switch' },
-          sensors:  { entity: '', label: '', icon: 'sensor', category: 'sensor' },
-          gauges:   { temp_entity: '', humidity_entity: '', label: '',
-                      temp_thresholds: JSON.stringify(DEFAULT_THRESHOLDS.temperature),
-                      hum_thresholds:  JSON.stringify(DEFAULT_THRESHOLDS.humidity),
-                      gauge_size: 88 },
-        };
-        const arr = [...(this._config[key] || []), defs[key]];
-        this._config = { ...this._config, [key]: arr };
-        this._fire();
-        this._render();
-      });
-    });
-
-    // Remove buttons
-    this.shadowRoot.querySelectorAll('[data-remove]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.remove;
-        const idx = parseInt(btn.dataset.idx);
-        const arr = [...(this._config[key] || [])];
-        arr.splice(idx, 1);
-        this._config = { ...this._config, [key]: arr };
-        this._fire();
-        this._render();
-      });
-    });
   }
 }
 
