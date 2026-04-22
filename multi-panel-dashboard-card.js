@@ -9,11 +9,11 @@
  *
  * Author: robman2026
  * GitHub: https://github.com/robman2026/multi-panel-dashboard-card
- * Version: 1.0.0
+ * Version: 1.4.0
  * License: MIT
  */
 
-const CARD_VERSION = "1.3.0";
+const CARD_VERSION = "1.4.0";
 // LitElement base — gives html/css tags and proper reactive rendering for editor
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
 const html = LitElement.prototype.html;
@@ -632,8 +632,10 @@ class MultiPanelDashboardCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const firstHass = !this._hass;
     this._hass = hass;
-    if (!this._built) {
+    if (!this._built || firstHass) {
+      // Full re-render on first hass — gauges/salt/cameras need real data
       this._render();
     } else {
       this._update();
@@ -942,11 +944,13 @@ class MultiPanelDashboardCard extends HTMLElement {
         el.entityId = entityId;
       });
     };
-    // Wait for custom element definition, then wait for upgrade via rAF
+    // mpd-cam-stream is a LitElement — it needs its own render cycle after
+    // being inserted into the DOM. A single rAF is not enough.
+    // We use 50ms timeout which gives Lit time to schedule and run firstUpdated.
     if (customElements.get('mpd-cam-stream')) {
-      requestAnimationFrame(doInit);
+      setTimeout(doInit, 50);
     } else {
-      customElements.whenDefined('mpd-cam-stream').then(() => requestAnimationFrame(doInit));
+      customElements.whenDefined('mpd-cam-stream').then(() => setTimeout(doInit, 50));
     }
   }
 
@@ -993,13 +997,94 @@ class MultiPanelDashboardCard extends HTMLElement {
       }
     });
 
-    // Update gauge values (text only — full re-render for color changes)
+    // Update gauge rings + text
     (cfg.gauges || []).forEach((g, i) => {
-      const tempEl = sr.getElementById(`g-temp-${i}`);
-      const humEl  = sr.getElementById(`g-hum-${i}`);
-      if (tempEl) tempEl.textContent = g.temp_entity     ? `${stateNum(hass, g.temp_entity).toFixed(1)}°C` : '—';
-      if (humEl)  humEl.textContent  = g.humidity_entity ? `${stateNum(hass, g.humidity_entity).toFixed(1)}%` : '—';
+      const card    = sr.querySelector(`.mpd-gauge-card[data-idx="${i}"]`);
+      const tempEl  = sr.getElementById(`g-temp-${i}`);
+      const humEl   = sr.getElementById(`g-hum-${i}`);
+      const size    = parseInt(g.gauge_size) || 88;
+      const tempVal = stateNum(hass, g.temp_entity);
+      const humVal  = stateNum(hass, g.humidity_entity);
+      const tempTh  = parseTh(g.temp_thresholds, DEFAULT_THRESHOLDS.temperature);
+      const humTh   = parseTh(g.hum_thresholds,  DEFAULT_THRESHOLDS.humidity);
+      const tempColor = colorFromThresholds(tempVal, tempTh);
+      const humColor  = colorFromThresholds(humVal,  humTh);
+      const tempPct   = Math.min(1, Math.max(0, tempVal / 50));
+      const humPct    = Math.min(1, Math.max(0, humVal  / 100));
+
+      if (tempEl) {
+        tempEl.textContent = g.temp_entity ? `${tempVal.toFixed(1)}°C` : '—';
+        tempEl.style.color = tempColor;
+      }
+      if (humEl) {
+        humEl.textContent = g.humidity_entity ? `${humVal.toFixed(1)}%` : '—';
+        humEl.style.color = humColor;
+      }
+
+      // Update SVG ring arcs directly
+      if (card) {
+        const circles = card.querySelectorAll('circle');
+        // circles[0]=outer track, [1]=outer arc, [2]=inner track, [3]=inner arc
+        if (circles.length >= 4) {
+          const r1 = size * 0.41;
+          const r2 = size * 0.32;
+          const c1 = 2 * Math.PI * r1;
+          const c2 = 2 * Math.PI * r2;
+          const off1 = c1 * (1 - tempPct);
+          const off2 = c2 * (1 - humPct);
+          circles[1].setAttribute('stroke', tempColor);
+          circles[1].setAttribute('stroke-dashoffset', off1.toFixed(1));
+          circles[1].style.filter = `drop-shadow(0 0 4px ${tempColor})`;
+          circles[3].setAttribute('stroke', humColor);
+          circles[3].setAttribute('stroke-dashoffset', off2.toFixed(1));
+          circles[3].style.filter = `drop-shadow(0 0 3px ${humColor})`;
+        }
+      }
     });
+
+    // Update salt display
+    if (cfg.salt_entity) {
+      const saltCard = sr.querySelector('.mpd-salt-card');
+      if (saltCard) {
+        const saltVal = stateNum(hass, cfg.salt_entity);
+        const saltPctEnt = cfg.salt_pct_entity ? stateNum(hass, cfg.salt_pct_entity) : null;
+        let saltPct;
+        if (saltPctEnt !== null) {
+          saltPct = Math.min(1, Math.max(0, saltPctEnt / 100));
+        } else if (cfg.salt_max_entity && stateNum(hass, cfg.salt_max_entity) > 0) {
+          saltPct = Math.min(1, Math.max(0, saltVal / stateNum(hass, cfg.salt_max_entity)));
+        } else if (cfg.salt_max_value && parseFloat(cfg.salt_max_value) > 0) {
+          saltPct = Math.min(1, Math.max(0, saltVal / parseFloat(cfg.salt_max_value)));
+        } else if (saltVal > 0 && saltVal <= 1) {
+          saltPct = saltVal;
+        } else if (saltVal > 1 && saltVal <= 100) {
+          saltPct = saltVal / 100;
+        } else {
+          saltPct = 0;
+        }
+        const saltPctDisp = (saltPct * 100).toFixed(1);
+        const saltTh    = parseTh(cfg.salt_thresholds, DEFAULT_THRESHOLDS.salt);
+        const saltColor = colorFromThresholds(parseFloat(saltPctDisp), saltTh);
+        const saltSize  = 96;
+        const r   = saltSize * 0.42;
+        const c   = 2 * Math.PI * r;
+        const off = c * (1 - saltPct);
+
+        const sValEl  = saltCard.querySelector('.s-val');
+        const sPctEl  = saltCard.querySelector('.s-pct');
+        const sMetaEl = saltCard.querySelector('.salt-meta');
+        const sBar    = saltCard.querySelector('.salt-bar');
+        const sCircle = saltCard.querySelector('circle:nth-child(2)');
+        if (sValEl)  sValEl.textContent  = saltVal > 0 ? saltVal.toFixed(2) + 'm' : '0.00m';
+        if (sPctEl)  sPctEl.textContent  = saltPctDisp + '%';
+        if (sMetaEl) sMetaEl.textContent = (saltVal > 0 ? saltVal.toFixed(2) + ' m · ' : '') + saltPctDisp + '% full';
+        if (sBar)    { sBar.style.width = saltPctDisp + '%'; sBar.style.background = saltColor; }
+        if (sCircle) {
+          sCircle.setAttribute('stroke', saltColor);
+          sCircle.setAttribute('stroke-dashoffset', off.toFixed(1));
+        }
+      }
+    }
   }
 
   _attachListeners() {
