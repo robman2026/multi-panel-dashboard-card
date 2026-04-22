@@ -4,7 +4,7 @@
  * Author: robman2026
  * GitHub: https://github.com/robman2026/multi-panel-dashboard-card
  * Version: 2.0.0
- * License: MIT
+ * License: MIT 
  */
 
 const CARD_VERSION = "2.1.3";
