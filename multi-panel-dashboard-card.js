@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.3.3";
+const CARD_VERSION = "2.3.4";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -156,21 +156,12 @@ function powerSVG(size, pct, color) {
 
 // ── Salt % calculation ──────────────────────────────────────────────────────
 function calcSaltPct(hass, cfg) {
-  var saltVal = stateNum(hass, cfg.salt_entity);
-  if (cfg.salt_pct_entity) {
-    var pctEnt = stateNum(hass, cfg.salt_pct_entity);
-    return Math.min(1, Math.max(0, pctEnt / 100));
-  }
-  if (cfg.salt_max_entity) {
-    var maxEnt = stateNum(hass, cfg.salt_max_entity);
-    if (maxEnt > 0) return Math.min(1, Math.max(0, saltVal / maxEnt));
-  }
-  if (cfg.salt_max_value) {
-    var maxVal = parseFloat(cfg.salt_max_value) || 0;
-    if (maxVal > 0) return Math.min(1, Math.max(0, saltVal / maxVal));
-  }
-  if (saltVal > 1 && saltVal <= 100) return saltVal / 100;
-  if (saltVal > 0 && saltVal <= 1)   return saltVal;
+  // Read sensor directly - no calculation
+  var entityId = cfg.salt_pct_entity || cfg.salt_entity;
+  if (!entityId || !hass) return 0;
+  var val = stateNum(hass, entityId);
+  if (val > 1 && val <= 100) return val / 100;
+  if (val >= 0 && val <= 1)  return val;
   return 0;
 }
 
@@ -385,7 +376,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       var scls   = isMotion && on ? 's-motion' : on ? 's-on' : '';
       var stxt   = unavail ? 'N/A' : isMotion ? (on ? 'Detected' : 'Clear') : stateLabel(state);
       return '<div class="' + cls + '" data-action="toggle" data-entity="' + (sw.entity||'') + '" data-idx="' + i + '">' +
-        renderIcon(sw.icon || 'switch_icon', icolor, 11) +
+        renderIcon(sw.icon || 'switch_icon', icolor, 17) +
         '<span class="sw-name">' + (sw.label||'—') + '</span>' +
         '<span class="sw-state ' + scls + '">' + stxt + '</span>' +
         '</div>';
@@ -431,12 +422,9 @@ class MultiPanelDashboardCard extends HTMLElement {
     var saltVal     = stateNum(hass, cfg.salt_entity);
     var saltPct     = (hass && cfg.salt_entity) ? calcSaltPct(hass, cfg) : 0;
     var saltPctDisp = (saltPct * 100).toFixed(1);
-    var saltRaw     = stateNum(hass, cfg.salt_entity);
-    var saltIsPct   = !cfg.salt_pct_entity && saltRaw > 1;
-    var saltPctVal  = cfg.salt_pct_entity ? stateNum(hass, cfg.salt_pct_entity) : (saltIsPct ? saltRaw : parseFloat(saltPctDisp));
-    var saltDistVal = !saltIsPct && !cfg.salt_pct_entity && saltRaw > 0 ? saltRaw : null;
-    var saltMainDisp = (hass && cfg.salt_entity) ? saltPctVal.toFixed(1) + '%' : '—';
-    var saltMetaDisp = (saltDistVal ? saltDistVal.toFixed(2) + ' m · ' : '') + saltPctDisp + '% full';
+    var saltMainDisp = (hass && cfg.salt_entity) ? saltPctDisp + '%' : '—';
+    var saltMetaDisp = saltPctDisp + '% full';
+    var saltDistVal  = null;
     var saltTh      = parseTh(cfg.salt_thresholds, DEFAULT_THRESHOLDS.salt);
     var saltColor   = colorFromThresholds(parseFloat(saltPctDisp), saltTh);
     var saltWarn    = parseFloat(saltPctDisp) < (cfg.salt_warn_threshold || 30);
@@ -614,15 +602,13 @@ class MultiPanelDashboardCard extends HTMLElement {
       var saltCard = sr.querySelector('.salt-tile');
       if (saltCard) {
         var saltVal     = stateNum(hass, cfg.salt_entity);
-        var saltPct     = calcSaltPct(hass, cfg);
-        var saltPctDisp = (saltPct * 100).toFixed(1);
-        var saltRaw     = stateNum(hass, cfg.salt_entity);
-        var saltIsPct   = !cfg.salt_pct_entity && saltRaw > 1;
-        var saltPctVal  = cfg.salt_pct_entity ? stateNum(hass, cfg.salt_pct_entity) : (saltIsPct ? saltRaw : parseFloat(saltPctDisp));
-        var saltDistVal = !saltIsPct && !cfg.salt_pct_entity && saltRaw > 0 ? saltRaw : null;
-        var saltMainDisp = saltPctVal.toFixed(1) + '%';
-        var saltMetaDisp = (saltDistVal ? saltDistVal.toFixed(2) + ' m · ' : '') + saltPctDisp + '% full';
-        var saltTh      = parseTh(cfg.salt_thresholds, DEFAULT_THRESHOLDS.salt);
+        var saltPct      = calcSaltPct(hass, cfg);
+        var saltPctNum   = Math.round(saltPct * 1000) / 10;
+        var saltPctDisp  = saltPctNum.toFixed(1);
+        var saltMainDisp = saltPctDisp + '%';
+        var saltMetaDisp = saltPctDisp + '% full';
+        var saltDistVal  = null;
+        var saltTh       = parseTh(cfg.salt_thresholds, DEFAULT_THRESHOLDS.salt);
         var saltColor   = colorFromThresholds(parseFloat(saltPctDisp), saltTh);
         var r = 64*0.42, c = 2*Math.PI*r, off = c*(1-saltPct);
         var sVal  = saltCard.querySelector('.s-val');
