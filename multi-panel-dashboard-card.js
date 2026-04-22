@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.1.4";
+const CARD_VERSION = "2.2.0";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -126,7 +126,7 @@ function gaugeSVG(size, outerPct, outerColor, innerPct, innerColor) {
   var o1 = c1 * (1 - Math.max(0, Math.min(1, outerPct)));
   var o2 = c2 * (1 - Math.max(0, Math.min(1, innerPct)));
   var oc = outerColor || '#4fa3e0', ic = innerColor || '#6ddb99';
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible">' +
+  return '<svg width="100%" height="100%" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible;display:block">' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r1 + '" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="3.5"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r1 + '" fill="none" stroke="' + oc + '" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="' + c1.toFixed(1) + '" stroke-dashoffset="' + o1.toFixed(1) + '" transform="rotate(-90 ' + cx + ' ' + cx + ')" style="filter:drop-shadow(0 0 4px ' + oc + ')"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r2 + '" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="2.5"/>' +
@@ -137,7 +137,7 @@ function gaugeSVG(size, outerPct, outerColor, innerPct, innerColor) {
 function saltSVG(size, pct, color) {
   var r = size * 0.42, cx = size / 2;
   var c = 2 * Math.PI * r, off = c * (1 - Math.max(0, Math.min(1, pct)));
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible">' +
+  return '<svg width="100%" height="100%" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible;display:block">' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="5"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 ' + cx + ' ' + cx + ')" style="filter:drop-shadow(0 0 4px ' + color + ')"/>' +
     '</svg>';
@@ -148,7 +148,7 @@ function powerSVG(size, pct, color) {
   var full = 2 * Math.PI * r;
   var arc  = full * 0.75;
   var fill = Math.max(0, Math.min(arc, pct * arc));
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="transform:rotate(-135deg);overflow:visible">' +
+  return '<svg width="100%" height="100%" viewBox="0 0 ' + size + ' ' + size + '" style="transform:rotate(-135deg);overflow:visible;display:block">' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="4" stroke-dasharray="' + arc.toFixed(1) + ' ' + (full - arc).toFixed(1) + '" stroke-linecap="round"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="4" stroke-dasharray="' + fill.toFixed(1) + ' ' + (full - fill).toFixed(1) + '" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ' + color + ')"/>' +
     '</svg>';
@@ -206,11 +206,11 @@ function getStubConfig() {
 // ── CSS ─────────────────────────────────────────────────────────────────────
 var STYLES = [
   "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');",
-  ":host{display:block;font-family:'DM Sans',sans-serif;container-type:inline-size;container-name:mpdcard;}",
+  ":host{display:block;font-family:'DM Sans',sans-serif;}",
   "*{box-sizing:border-box;margin:0;padding:0}",
-  ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;}",
+  ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;container-type:inline-size;container-name:mpdcard;}",
   ".mpd-card::before{content:'';position:absolute;width:300px;height:300px;border-radius:50%;top:-100px;right:-80px;background:#4fa3e0;filter:blur(80px);opacity:.06;pointer-events:none;}",
-  ".sec{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.22);font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:6px;}",
+  ".sec{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.22);font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;}",
   ".sec-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}",
   ".divider{height:1px;background:rgba(255,255,255,.05);margin:14px 0;}",
   ".cam-strip{display:grid;gap:8px;}",
@@ -221,7 +221,8 @@ var STYLES = [
   ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--mpd-cols,4),minmax(0,1fr));}",
   "@container mpdcard(max-width:900px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
   "@container mpdcard(max-width:480px){.bottom-grid{grid-template-columns:repeat(1,minmax(0,1fr));}}",
-"@container mpdcard(max-width:600px){.gauge-tile,.power-tile{padding:8px 4px;gap:5px;}.salt-tile{padding:8px 6px;gap:8px;}}",
+"@container mpdcard(max-width:700px){.sec{letter-spacing:.06em;font-size:8px;}.gauge-tile,.power-tile{padding:7px 5px;gap:6px;}.salt-tile{padding:7px 8px;gap:8px;}}",
+"@container mpdcard(max-width:500px){.gauge-tile,.power-tile{padding:6px 4px;gap:4px;}.salt-tile{padding:6px 6px;gap:6px;}.sw-tile{padding:8px 5px;}.sensor-tile{padding:6px 3px;}}",
   ".sec-col{min-width:0;overflow:hidden;}",
   ".acc-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:6px;}",
   ".acc-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.03);user-select:none;}",
@@ -256,14 +257,14 @@ var STYLES = [
   ".gauge-grid.gcols-2 .g-name,.gauge-grid.gcols-3 .g-name{text-align:center;}",
   ".gauge-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".gauge-tile:hover{background:rgba(255,255,255,.06);}",
-  ".gauge-wrap{position:relative;flex-shrink:0;min-width:0;}",
+  ".gauge-wrap{position:relative;min-width:0;width:100%;aspect-ratio:1;max-width:72px;}",
   ".gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}",
   ".g-val{font-size:12px;font-weight:600;display:block;line-height:1.15;font-family:'DM Mono',monospace;}",
   ".g-sub{font-size:8px;display:block;margin-top:1px;font-family:'DM Mono',monospace;}",
   ".g-name{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.28);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;}",
   ".salt-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 12px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".salt-tile:hover{background:rgba(255,255,255,.06);}",
-  ".salt-wrap{position:relative;flex-shrink:0;min-width:0;}",
+  ".salt-wrap{position:relative;min-width:0;width:64px;flex-shrink:1;}",
   ".salt-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}",
   ".s-val{font-size:11px;font-weight:600;color:rgba(255,255,255,.9);font-family:'DM Mono',monospace;display:block;line-height:1.1;}",
   ".s-pct{font-size:8px;color:rgba(255,255,255,.38);display:block;}",
@@ -279,7 +280,7 @@ var STYLES = [
   ".power-grid.pcols-2 .power-name,.power-grid.pcols-3 .power-name{text-align:center;}",
   ".power-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".power-tile:hover{background:rgba(255,255,255,.06);}",
-  ".power-arc-wrap{position:relative;flex-shrink:0;min-width:0;}",
+  ".power-arc-wrap{position:relative;min-width:0;width:60px;flex-shrink:1;aspect-ratio:1;}",
   ".power-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}",
   ".p-val{font-size:12px;font-weight:600;color:rgba(255,255,255,.9);font-family:'DM Mono',monospace;line-height:1;}",
   ".p-unit{font-size:7px;color:rgba(255,255,255,.35);letter-spacing:.04em;text-transform:uppercase;}",
@@ -410,7 +411,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       var tempStr   = g.temp_entity     ? tempVal.toFixed(1) + '°C' : '—';
       var humStr    = g.humidity_entity ? humVal.toFixed(1)  + '%'  : '—';
       return '<div class="gauge-tile" data-action="more-info" data-entity="' + (g.temp_entity||'') + '" data-idx="' + i + '">' +
-        '<div class="gauge-wrap" style="width:' + size + 'px;height:' + size + 'px">' +
+        '<div class="gauge-wrap">' +
         gaugeSVG(size, tempPct, tempColor, humPct, humColor) +
         '<div class="gauge-center">' +
         '<span class="g-val" id="g-temp-' + i + '" style="color:' + tempColor + '">' + tempStr + '</span>' +
@@ -435,7 +436,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         (cfg.label_salt || 'Salt Level') +
       '</div>' +
       '<div class="salt-tile" data-action="more-info" data-entity="' + cfg.salt_entity + '">' +
-        '<div class="salt-wrap" style="width:' + saltSize + 'px;height:' + saltSize + 'px">' +
+        '<div class="salt-wrap">' +
           saltSVG(saltSize, saltPct, saltColor) +
           '<div class="salt-center">' +
             '<span class="s-val">' + (saltVal > 0 ? saltVal.toFixed(2)+'m' : '—') + '</span>' +
@@ -465,7 +466,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       var subs = (energy  ? '<div class="p-sub"><div class="p-sub-val">' + energy  + 'kWh</div><div class="p-sub-lbl">Energy</div></div>'  : '') +
                  (current ? '<div class="p-sub"><div class="p-sub-val">' + current + 'A</div><div class="p-sub-lbl">Current</div></div>' : '');
       return '<div class="power-tile" data-action="more-info" data-entity="' + (p.entity||'') + '" data-idx="' + i + '">' +
-        '<div class="power-arc-wrap" style="width:' + pSize + 'px;height:' + pSize + 'px">' +
+        '<div class="power-arc-wrap">' +
           powerSVG(pSize, pct, pcolor) +
           '<div class="power-center">' +
             '<span class="p-val" style="color:' + pcolor + '">' + Math.round(watts) + '</span>' +
