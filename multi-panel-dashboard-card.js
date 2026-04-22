@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.1.2";
+const CARD_VERSION = "2.1.3";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -206,7 +206,7 @@ function getStubConfig() {
 // ── CSS ─────────────────────────────────────────────────────────────────────
 var STYLES = [
   "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');",
-  ":host{display:block;font-family:'DM Sans',sans-serif;}",
+  ":host{display:block;font-family:'DM Sans',sans-serif;container-type:inline-size;container-name:mpdcard;}",
   "*{box-sizing:border-box;margin:0;padding:0}",
   ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;}",
   ".mpd-card::before{content:'';position:absolute;width:300px;height:300px;border-radius:50%;top:-100px;right:-80px;background:#4fa3e0;filter:blur(80px);opacity:.06;pointer-events:none;}",
@@ -219,8 +219,8 @@ var STYLES = [
   "mpd-cam-stream{display:block;width:100%;}",
   ".cam-placeholder{width:100%;min-height:130px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1220,#111827);}",
   ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--mpd-cols,4),minmax(0,1fr));}",
-  "@media(max-width:1000px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
-  "@media(max-width:500px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
+  "@container mpdcard(max-width:900px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
+  "@container mpdcard(max-width:480px){.bottom-grid{grid-template-columns:repeat(1,minmax(0,1fr));}}",
   ".sec-col{min-width:0;overflow:hidden;}",
   ".acc-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:6px;}",
   ".acc-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.03);user-select:none;}",
