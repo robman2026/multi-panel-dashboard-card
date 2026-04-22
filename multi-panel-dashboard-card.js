@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.0.0";
+const CARD_VERSION = "2.1.0";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -195,6 +195,11 @@ function getStubConfig() {
     label_surveillance: 'Surveillance', label_switches: 'Switches',
     label_sensors: 'Sensors', label_climate: 'Climate',
     label_salt: 'Salt Level', label_power: 'Power',
+    accordion_switches: false,
+    accordion_sensors:  false,
+    accordion_climate:  false,
+    accordion_power:    false,
+    accordion_default_open: true,
   };
 }
 
@@ -213,8 +218,19 @@ var STYLES = [
   ".cam-tile:hover{border-color:rgba(79,163,224,.35);}",
   "mpd-cam-stream{display:block;width:100%;}",
   ".cam-placeholder{width:100%;min-height:130px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1220,#111827);}",
-  ".bottom-grid{display:grid;gap:12px;}",
+  ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(4,minmax(0,1fr));}",
+  "@media(max-width:1000px){.bottom-grid{grid-template-columns:1fr 1fr;}}",
+  "@media(max-width:500px){.bottom-grid{grid-template-columns:1fr 1fr;}}",
   ".sec-col{}",
+  ".acc-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:6px;}",
+  ".acc-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.03);user-select:none;}",
+  ".acc-header:hover{background:rgba(255,255,255,.06);}",
+  ".acc-title{display:flex;align-items:center;gap:8px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.5);font-weight:500;}",
+  ".acc-arrow{font-size:10px;color:rgba(255,255,255,.3);transition:transform .25s;display:inline-block;}",
+  ".acc-arrow.acc-open{transform:rotate(180deg);}",
+  ".acc-body{overflow:hidden;max-height:0;transition:max-height .3s ease;}",
+  ".acc-body.acc-open{max-height:2000px;}",
+  ".acc-inner{padding:10px 0 2px;}",
   ".sw-grid{display:grid;gap:6px;}",
   ".sw-tile{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;transition:background .15s,border-color .15s;}",
   ".sw-tile:active{transform:scale(.97);}",
@@ -312,6 +328,27 @@ class MultiPanelDashboardCard extends HTMLElement {
   _toggle(id) {
     if (!id || !this._hass) return;
     this._hass.callService('homeassistant', 'toggle', { entity_id: id });
+  }
+
+  // Wraps a section in either a plain sec-col div or an accordion
+  // accordion=true adds a tappable header that expands/collapses the body
+  _wrapSection(id, accordion, defaultOpen, dotColor, label, innerHTML) {
+    if (!accordion) {
+      return '<div class="sec-col">' +
+        '<div class="sec"><span class="sec-dot" style="background:' + dotColor + ';box-shadow:0 0 5px ' + dotColor + '"></span>' + label + '</div>' +
+        innerHTML +
+        '</div>';
+    }
+    var open = defaultOpen !== false;
+    return '<div class="sec-col acc-section">' +
+      '<div class="acc-header" data-acc="' + id + '">' +
+        '<span class="acc-title"><span style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';box-shadow:0 0 5px ' + dotColor + ';display:inline-block;flex-shrink:0"></span>' + label + '</span>' +
+        '<span class="acc-arrow' + (open ? ' acc-open' : '') + '" id="acc-arr-' + id + '">▼</span>' +
+      '</div>' +
+      '<div class="acc-body' + (open ? ' acc-open' : '') + '" id="acc-body-' + id + '">' +
+        '<div class="acc-inner">' + innerHTML + '</div>' +
+      '</div>' +
+    '</div>';
   }
 
   _buildHTML() {
@@ -448,35 +485,31 @@ class MultiPanelDashboardCard extends HTMLElement {
     var hasPower = (cfg.power_circuits || []).length > 0;
     var bottomCols = [hasSw, hasSens, hasClim, hasPower].filter(Boolean).length || 1;
 
-    var swSec = hasSw ? (
-      '<div class="sec-col">' +
-        '<div class="sec"><span class="sec-dot" style="background:#ffd26d;box-shadow:0 0 5px #ffd26d"></span>' + (cfg.label_switches||'Switches') + '</div>' +
-        '<div class="sw-grid" style="grid-template-columns:repeat(' + swCols + ',1fr)">' + swHTML + '</div>' +
-      '</div>'
+    var wrapSection = this._wrapSection.bind(this);
+    var swSec = hasSw ? wrapSection(
+      'sw', cfg.accordion_switches, cfg.accordion_default_open !== false,
+      '#ffd26d', cfg.label_switches||'Switches',
+      '<div class="sw-grid" style="grid-template-columns:repeat(' + swCols + ',1fr)">' + swHTML + '</div>'
     ) : '';
 
-    var sensSec = hasSens ? (
-      '<div class="sec-col">' +
-        '<div class="sec"><span class="sec-dot" style="background:#6ddb99;box-shadow:0 0 5px #6ddb99"></span>' + (cfg.label_sensors||'Sensors') + '</div>' +
-        '<div class="sensor-grid scols-' + sCols + '" style="grid-template-columns:repeat(' + sCols + ',1fr)">' + sensHTML + '</div>' +
-      '</div>'
+    var sensSec = hasSens ? wrapSection(
+      'sens', cfg.accordion_sensors, cfg.accordion_default_open !== false,
+      '#6ddb99', cfg.label_sensors||'Sensors',
+      '<div class="sensor-grid scols-' + sCols + '" style="grid-template-columns:repeat(' + sCols + ',1fr)">' + sensHTML + '</div>'
     ) : '';
 
-    var climSec = hasClim ? (
-      '<div class="sec-col">' +
-        ((cfg.gauges||[]).length > 0 ?
-          '<div class="sec"><span class="sec-dot" style="background:#6ddb99;box-shadow:0 0 5px #6ddb99"></span>' + (cfg.label_climate||'Climate') + '</div>' +
-          '<div class="gauge-grid gcols-' + gCols + '" style="grid-template-columns:repeat(' + gCols + ',1fr)">' + gaugesHTML + '</div>'
-          : '') +
-        saltHTML +
-      '</div>'
+    var climSec = hasClim ? wrapSection(
+      'clim', cfg.accordion_climate, cfg.accordion_default_open !== false,
+      '#6ddb99', cfg.label_climate||'Climate',
+      ((cfg.gauges||[]).length > 0 ?
+        '<div class="gauge-grid gcols-' + gCols + '" style="grid-template-columns:repeat(' + gCols + ',1fr)">' + gaugesHTML + '</div>' : '') +
+      saltHTML
     ) : '';
 
-    var powerSec = hasPower ? (
-      '<div class="sec-col">' +
-        '<div class="sec"><span class="sec-dot" style="background:#e07c4f;box-shadow:0 0 5px #e07c4f"></span>' + (cfg.label_power||'Power') + '</div>' +
-        '<div class="power-grid pcols-' + pCols + '" style="grid-template-columns:repeat(' + pCols + ',1fr)">' + powerHTML + '</div>' +
-      '</div>'
+    var powerSec = hasPower ? wrapSection(
+      'pwr', cfg.accordion_power, cfg.accordion_default_open !== false,
+      '#e07c4f', cfg.label_power||'Power',
+      '<div class="power-grid pcols-' + pCols + '" style="grid-template-columns:repeat(' + pCols + ',1fr)">' + powerHTML + '</div>'
     ) : '';
 
     return '<style>' + STYLES + '</style>' +
@@ -484,7 +517,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         '<div class="sec"><span class="sec-dot" style="background:#4fa3e0;box-shadow:0 0 5px #4fa3e0"></span>' + (cfg.label_surveillance||'Surveillance') + '</div>' +
         '<div class="cam-strip" style="grid-template-columns:repeat(' + camCols + ',1fr)">' + camsHTML + '</div>' +
         '<div class="divider"></div>' +
-        '<div class="bottom-grid" style="grid-template-columns:repeat(' + bottomCols + ',minmax(0,1fr))">' +
+        '<div class="bottom-grid">' +
           swSec + sensSec + climSec + powerSec +
         '</div>' +
       '</div>';
@@ -621,6 +654,16 @@ class MultiPanelDashboardCard extends HTMLElement {
   }
 
   _attachListeners() {
+    // Accordion toggles
+    this.shadowRoot.querySelectorAll('[data-acc]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var id   = el.dataset.acc;
+        var body = el.parentNode.querySelector('#acc-body-' + id);
+        var arr  = el.parentNode.querySelector('#acc-arr-'  + id);
+        if (body) body.classList.toggle('acc-open');
+        if (arr)  arr.classList.toggle('acc-open');
+      });
+    });
     this.shadowRoot.querySelectorAll('[data-action]').forEach(function(el) {
       el.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -686,6 +729,10 @@ class MultiPanelDashboardCardEditor extends LitElement {
   _txt(lbl, v, onChange, ph) {
     return html`<label class="el">${lbl}</label><input class="ei" type="text" .value="${v||''}" placeholder="${ph||''}" @input="${function(e){onChange(e.target.value);}}" />`;
   }
+  _toggle(lbl, v, onChange) {
+    return html`<div class="trow"><span class="el" style="margin:0">${lbl}</span><label class="tgl"><input type="checkbox" ?checked="${!!v}" @change="${function(e){onChange(e.target.checked);}}"/><span class="tslider"></span></label></div>`;
+  }
+
   _num(lbl, v, onChange, ph) {
     return html`<label class="el">${lbl}</label><input class="ei" type="number" .value="${v!==undefined&&v!==null?String(v):''}" placeholder="${ph||''}" @input="${function(e){onChange(e.target.value);}}" />`;
   }
@@ -826,6 +873,14 @@ class MultiPanelDashboardCardEditor extends LitElement {
         ${this._txt('Climate',      cfg.label_climate,      function(v){self._set('label_climate',v);},      'Climate')}
         ${this._txt('Salt',         cfg.label_salt,         function(v){self._set('label_salt',v);},         'Salt Level')}
         ${this._txt('Power',        cfg.label_power,        function(v){self._set('label_power',v);},        'Power')}
+      </div>
+      <div class="section"><div class="st">Accordion (collapsible sections)</div>
+        <p class="hint">Enable accordion per section — shows a tap-to-expand header instead of always-visible content. Useful on mobile to save space.</p>
+        ${this._toggle('Accordion: Switches', cfg.accordion_switches, function(v){self._set('accordion_switches',v);})}
+        ${this._toggle('Accordion: Sensors',  cfg.accordion_sensors,  function(v){self._set('accordion_sensors',v);})}
+        ${this._toggle('Accordion: Climate',  cfg.accordion_climate,  function(v){self._set('accordion_climate',v);})}
+        ${this._toggle('Accordion: Power',    cfg.accordion_power,    function(v){self._set('accordion_power',v);})}
+        ${this._toggle('Default: expanded',   cfg.accordion_default_open !== false, function(v){self._set('accordion_default_open',v);})}
       </div>`;
   }
 
@@ -877,6 +932,13 @@ class MultiPanelDashboardCardEditor extends LitElement {
       .ba:hover{background:rgba(79,163,224,.08);}
       .br{padding:3px 8px;font-size:.68rem;border:1px solid #ef4444;border-radius:4px;background:transparent;color:#ef4444;cursor:pointer;}
       .br:hover{background:rgba(239,68,68,.1);}
+      .trow{display:flex;align-items:center;justify-content:space-between;padding:7px 0;}
+      .tgl{position:relative;display:inline-block;width:38px;height:21px;flex-shrink:0;}
+      .tgl input{display:none;}
+      .tslider{position:absolute;inset:0;background:#334155;border-radius:11px;cursor:pointer;transition:background .2s;}
+      .tslider::before{content:'';position:absolute;left:3px;top:3px;width:15px;height:15px;background:white;border-radius:50%;transition:transform .2s;}
+      .tgl input:checked + .tslider{background:var(--primary-color,#4fa3e0);}
+      .tgl input:checked + .tslider::before{transform:translateX(17px);}
     `;
   }
 }
