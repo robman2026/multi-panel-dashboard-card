@@ -1004,7 +1004,7 @@ class MpdCamStream extends LitElement {
   static get styles() {
     return css`
       :host{display:block;}
-      .stream-wrap{position:relative;border-radius:11px;overflow:hidden;background:#0a0e1a;border:1px solid rgba(255,255,255,.08);min-height:90px;cursor:pointer;}
+      .stream-wrap{position:relative;border-radius:11px;overflow:hidden;background:#0a0e1a;border:1px solid rgba(255,255,255,.08);min-height:80px;cursor:pointer;}
       ha-camera-stream{width:100%;display:block;max-height:350px;object-fit:cover;--video-border-radius:0;}
       
       .stream-fs-btn:active{transform:scale(.92);}
