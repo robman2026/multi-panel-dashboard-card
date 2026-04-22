@@ -385,7 +385,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       var scls   = isMotion && on ? 's-motion' : on ? 's-on' : '';
       var stxt   = unavail ? 'N/A' : isMotion ? (on ? 'Detected' : 'Clear') : stateLabel(state);
       return '<div class="' + cls + '" data-action="toggle" data-entity="' + (sw.entity||'') + '" data-idx="' + i + '">' +
-        renderIcon(sw.icon || 'switch_icon', icolor, 17) +
+        renderIcon(sw.icon || 'switch_icon', icolor, 11) +
         '<span class="sw-name">' + (sw.label||'—') + '</span>' +
         '<span class="sw-state ' + scls + '">' + stxt + '</span>' +
         '</div>';
