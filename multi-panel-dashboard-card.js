@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.1.1";
+const CARD_VERSION = "2.1.2";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -218,9 +218,9 @@ var STYLES = [
   ".cam-tile:hover{border-color:rgba(79,163,224,.35);}",
   "mpd-cam-stream{display:block;width:100%;}",
   ".cam-placeholder{width:100%;min-height:130px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1220,#111827);}",
-  ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(4,minmax(0,1fr));}",
-  "@media(max-width:1000px){.bottom-grid{grid-template-columns:1fr 1fr;}}",
-  "@media(max-width:500px){.bottom-grid{grid-template-columns:1fr 1fr;}}",
+  ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--mpd-cols,4),minmax(0,1fr));}",
+  "@media(max-width:1000px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
+  "@media(max-width:500px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
   ".sec-col{min-width:0;overflow:hidden;}",
   ".acc-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:6px;}",
   ".acc-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.03);user-select:none;}",
@@ -517,7 +517,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         '<div class="sec"><span class="sec-dot" style="background:#4fa3e0;box-shadow:0 0 5px #4fa3e0"></span>' + (cfg.label_surveillance||'Surveillance') + '</div>' +
         '<div class="cam-strip" style="grid-template-columns:repeat(' + camCols + ',1fr)">' + camsHTML + '</div>' +
         '<div class="divider"></div>' +
-        '<div class="bottom-grid" style="grid-template-columns:repeat(' + bottomCols + ',minmax(0,1fr))">' +
+        '<div class="bottom-grid" style="--mpd-cols:' + bottomCols + '">' +
           swSec + sensSec + climSec + powerSec +
         '</div>' +
       '</div>';
