@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.1.0";
+const CARD_VERSION = "2.1.1";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -221,7 +221,7 @@ var STYLES = [
   ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(4,minmax(0,1fr));}",
   "@media(max-width:1000px){.bottom-grid{grid-template-columns:1fr 1fr;}}",
   "@media(max-width:500px){.bottom-grid{grid-template-columns:1fr 1fr;}}",
-  ".sec-col{}",
+  ".sec-col{min-width:0;overflow:hidden;}",
   ".acc-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:6px;}",
   ".acc-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.03);user-select:none;}",
   ".acc-header:hover{background:rgba(255,255,255,.06);}",
@@ -231,7 +231,7 @@ var STYLES = [
   ".acc-body{overflow:hidden;max-height:0;transition:max-height .3s ease;}",
   ".acc-body.acc-open{max-height:2000px;}",
   ".acc-inner{padding:10px 0 2px;}",
-  ".sw-grid{display:grid;gap:6px;}",
+  ".sw-grid{display:grid;gap:6px;min-width:0;}",
   ".sw-tile{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;transition:background .15s,border-color .15s;}",
   ".sw-tile:active{transform:scale(.97);}",
   ".sw-tile.sw-on{background:rgba(79,163,224,.07);border-color:rgba(79,163,224,.2);}",
@@ -240,16 +240,16 @@ var STYLES = [
   ".sw-name{font-size:9px;font-weight:500;color:rgba(255,255,255,.75);text-align:center;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}",
   ".sw-state{font-size:8px;letter-spacing:.06em;text-transform:uppercase;font-family:'DM Mono',monospace;color:rgba(255,255,255,.28);}",
   ".sw-state.s-on{color:#6dbfff;}.sw-state.s-motion{color:#ffaa6d;}.sw-state.s-open{color:#ffd26d;}",
-  ".sensor-grid{display:grid;gap:5px;}",
+  ".sensor-grid{display:grid;gap:5px;min-width:0;}",
   ".sensor-grid.scols-1 .sensor-tile{flex-direction:row;padding:7px 9px;text-align:left;}",
   ".sensor-grid.scols-1 .sensor-name{flex:1;text-align:left;}",
   ".sensor-grid.scols-2 .sensor-tile,.sensor-grid.scols-3 .sensor-tile,.sensor-grid.scols-4 .sensor-tile{flex-direction:column;padding:8px 4px;text-align:center;}",
-  ".sensor-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:9px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:background .15s;}",
+  ".sensor-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:9px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".sensor-tile:hover{background:rgba(255,255,255,.06);}",
-  ".sensor-name{font-size:8px;color:rgba(255,255,255,.28);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}",
-  ".sensor-val{font-size:9px;font-weight:500;font-family:'DM Mono',monospace;color:rgba(255,255,255,.38);flex-shrink:0;}",
+  ".sensor-name{font-size:8px;color:rgba(255,255,255,.28);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;min-width:0;}",
+  ".sensor-val{font-size:9px;font-weight:500;font-family:'DM Mono',monospace;color:rgba(255,255,255,.38);flex-shrink:0;min-width:0;}",
   ".sv-on{color:#6dbfff;}.sv-open{color:#ffd26d;}.sv-motion{color:#ff8a6d;}.sv-off{color:rgba(255,255,255,.2);}",
-  ".gauge-grid{display:grid;gap:7px;}",
+  ".gauge-grid{display:grid;gap:7px;min-width:0;}",
   ".gauge-grid.gcols-1 .gauge-tile{flex-direction:row;}.gauge-grid.gcols-1 .g-name{text-align:left;}",
   ".gauge-grid.gcols-2 .gauge-tile,.gauge-grid.gcols-3 .gauge-tile{flex-direction:column;align-items:center;}",
   ".gauge-grid.gcols-2 .g-name,.gauge-grid.gcols-3 .g-name{text-align:center;}",
@@ -272,7 +272,7 @@ var STYLES = [
   ".salt-bar{height:3px;border-radius:3px;transition:width .6s;}",
   ".salt-meta{font-size:8px;color:rgba(255,255,255,.25);font-family:'DM Mono',monospace;}",
   ".salt-warn{font-size:8px;color:#ffd26d;margin-top:3px;display:flex;align-items:center;gap:3px;}",
-  ".power-grid{display:grid;gap:7px;}",
+  ".power-grid{display:grid;gap:7px;min-width:0;}",
   ".power-grid.pcols-1 .power-tile{flex-direction:row;}.power-grid.pcols-1 .power-name{text-align:left;}",
   ".power-grid.pcols-2 .power-tile,.power-grid.pcols-3 .power-tile{flex-direction:column;align-items:center;}",
   ".power-grid.pcols-2 .power-name,.power-grid.pcols-3 .power-name{text-align:center;}",
@@ -517,7 +517,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         '<div class="sec"><span class="sec-dot" style="background:#4fa3e0;box-shadow:0 0 5px #4fa3e0"></span>' + (cfg.label_surveillance||'Surveillance') + '</div>' +
         '<div class="cam-strip" style="grid-template-columns:repeat(' + camCols + ',1fr)">' + camsHTML + '</div>' +
         '<div class="divider"></div>' +
-        '<div class="bottom-grid">' +
+        '<div class="bottom-grid" style="grid-template-columns:repeat(' + bottomCols + ',minmax(0,1fr))">' +
           swSec + sensSec + climSec + powerSec +
         '</div>' +
       '</div>';
