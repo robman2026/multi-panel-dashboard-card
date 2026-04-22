@@ -4,10 +4,10 @@
  * Author: robman2026
  * GitHub: https://github.com/robman2026/multi-panel-dashboard-card
  * Version: 2.0.0
- * License: MIT 
+ * License: MIT
  */
 
-const CARD_VERSION = "2.1.3";
+const CARD_VERSION = "2.1.4";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -221,6 +221,7 @@ var STYLES = [
   ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--mpd-cols,4),minmax(0,1fr));}",
   "@container mpdcard(max-width:900px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
   "@container mpdcard(max-width:480px){.bottom-grid{grid-template-columns:repeat(1,minmax(0,1fr));}}",
+"@container mpdcard(max-width:600px){.gauge-tile,.power-tile{padding:8px 4px;gap:5px;}.salt-tile{padding:8px 6px;gap:8px;}}",
   ".sec-col{min-width:0;overflow:hidden;}",
   ".acc-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:6px;}",
   ".acc-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.03);user-select:none;}",
@@ -253,20 +254,20 @@ var STYLES = [
   ".gauge-grid.gcols-1 .gauge-tile{flex-direction:row;}.gauge-grid.gcols-1 .g-name{text-align:left;}",
   ".gauge-grid.gcols-2 .gauge-tile,.gauge-grid.gcols-3 .gauge-tile{flex-direction:column;align-items:center;}",
   ".gauge-grid.gcols-2 .g-name,.gauge-grid.gcols-3 .g-name{text-align:center;}",
-  ".gauge-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;}",
+  ".gauge-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".gauge-tile:hover{background:rgba(255,255,255,.06);}",
-  ".gauge-wrap{position:relative;flex-shrink:0;}",
+  ".gauge-wrap{position:relative;flex-shrink:0;min-width:0;}",
   ".gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}",
   ".g-val{font-size:12px;font-weight:600;display:block;line-height:1.15;font-family:'DM Mono',monospace;}",
   ".g-sub{font-size:8px;display:block;margin-top:1px;font-family:'DM Mono',monospace;}",
-  ".g-name{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.28);}",
-  ".salt-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 12px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s;}",
+  ".g-name{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.28);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;}",
+  ".salt-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 12px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".salt-tile:hover{background:rgba(255,255,255,.06);}",
-  ".salt-wrap{position:relative;flex-shrink:0;}",
+  ".salt-wrap{position:relative;flex-shrink:0;min-width:0;}",
   ".salt-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}",
   ".s-val{font-size:11px;font-weight:600;color:rgba(255,255,255,.9);font-family:'DM Mono',monospace;display:block;line-height:1.1;}",
   ".s-pct{font-size:8px;color:rgba(255,255,255,.38);display:block;}",
-  ".salt-info{flex:1;min-width:0;}",
+  ".salt-info{flex:1;min-width:0;overflow:hidden;}",
   ".salt-title{font-size:9px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:5px;}",
   ".salt-bar-wrap{background:rgba(255,255,255,.06);border-radius:3px;height:3px;overflow:hidden;margin-bottom:4px;}",
   ".salt-bar{height:3px;border-radius:3px;transition:width .6s;}",
@@ -276,13 +277,13 @@ var STYLES = [
   ".power-grid.pcols-1 .power-tile{flex-direction:row;}.power-grid.pcols-1 .power-name{text-align:left;}",
   ".power-grid.pcols-2 .power-tile,.power-grid.pcols-3 .power-tile{flex-direction:column;align-items:center;}",
   ".power-grid.pcols-2 .power-name,.power-grid.pcols-3 .power-name{text-align:center;}",
-  ".power-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;}",
+  ".power-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".power-tile:hover{background:rgba(255,255,255,.06);}",
-  ".power-arc-wrap{position:relative;flex-shrink:0;}",
+  ".power-arc-wrap{position:relative;flex-shrink:0;min-width:0;}",
   ".power-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}",
   ".p-val{font-size:12px;font-weight:600;color:rgba(255,255,255,.9);font-family:'DM Mono',monospace;line-height:1;}",
   ".p-unit{font-size:7px;color:rgba(255,255,255,.35);letter-spacing:.04em;text-transform:uppercase;}",
-  ".power-info{min-width:0;}",
+  ".power-info{min-width:0;overflow:hidden;}",
   ".power-name{font-size:8px;color:rgba(255,255,255,.28);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
   ".power-subs{display:flex;gap:8px;flex-wrap:wrap;}",
   ".p-sub{display:flex;flex-direction:column;}",
