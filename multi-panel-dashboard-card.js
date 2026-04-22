@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.2.1";
+const CARD_VERSION = "2.3.0";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -208,8 +208,7 @@ var STYLES = [
   "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');",
   ":host{display:block;font-family:'DM Sans',sans-serif;}",
   "*{box-sizing:border-box;margin:0;padding:0}",
-  ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;}",".mpd-inner{container-type:inline-size;container-name:mpdcard;}",
-  
+  ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;}",".mpd-inner{width:100%;}",
   ".mpd-card::before{content:'';position:absolute;width:300px;height:300px;border-radius:50%;top:-100px;right:-80px;background:#4fa3e0;filter:blur(80px);opacity:.06;pointer-events:none;}",
   ".sec{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.22);font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;}",
   ".sec-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}",
@@ -220,10 +219,15 @@ var STYLES = [
   "mpd-cam-stream{display:block;width:100%;}",
   ".cam-placeholder{width:100%;min-height:130px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1220,#111827);}",
   ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--mpd-cols,4),minmax(0,1fr));}",
-  "@container mpdcard(max-width:900px){.bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
-  "@container mpdcard(max-width:480px){.bottom-grid{grid-template-columns:repeat(1,minmax(0,1fr));}}",
-"@container mpdcard(max-width:700px){.sec{letter-spacing:.06em;font-size:8px;}.gauge-tile,.power-tile{padding:7px 5px;gap:6px;}.salt-tile{padding:7px 8px;gap:8px;}}",
-"@container mpdcard(max-width:500px){.gauge-tile,.power-tile{padding:6px 4px;gap:4px;}.salt-tile{padding:6px 6px;gap:6px;}.sw-tile{padding:8px 5px;}.sensor-tile{padding:6px 3px;}}",
+  ".mpd-inner.bp-sm .bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}",
+  ".mpd-inner.bp-xs .bottom-grid{grid-template-columns:repeat(1,minmax(0,1fr));}",
+  ".mpd-inner.bp-sm .sec{letter-spacing:.06em;font-size:8px;}",
+  ".mpd-inner.bp-sm .gauge-tile,.mpd-inner.bp-sm .power-tile{padding:7px 5px;gap:6px;}",
+  ".mpd-inner.bp-sm .salt-tile{padding:7px 8px;gap:8px;}",
+  ".mpd-inner.bp-xs .gauge-tile,.mpd-inner.bp-xs .power-tile{padding:6px 4px;gap:4px;}",
+  ".mpd-inner.bp-xs .salt-tile{padding:6px 6px;gap:6px;}",
+  ".mpd-inner.bp-xs .sw-tile{padding:8px 5px;}",
+  ".mpd-inner.bp-xs .sensor-tile{padding:6px 3px;}",
   ".sec-col{min-width:0;overflow:hidden;}",
   ".acc-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;margin-bottom:6px;}",
   ".acc-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.03);user-select:none;}",
@@ -523,14 +527,29 @@ class MultiPanelDashboardCard extends HTMLElement {
         '<div class="bottom-grid" style="--mpd-cols:' + bottomCols + '">' +
           swSec + sensSec + climSec + powerSec +
         '</div>' +
-      '</div>';
+      '</div></div>';
   }
 
   _render() {
     this.shadowRoot.innerHTML = this._buildHTML();
     this._attachListeners();
     this._initStreams();
+    this._startResizeObserver();
     this._built = true;
+  }
+
+  _startResizeObserver() {
+    if (this._ro) this._ro.disconnect();
+    var inner = this.shadowRoot.querySelector('.mpd-inner');
+    if (!inner) return;
+    var self = this;
+    this._ro = new ResizeObserver(function(entries) {
+      var w = entries[0].contentRect.width;
+      inner.classList.remove('bp-sm', 'bp-xs');
+      if (w < 480)      inner.classList.add('bp-xs');
+      else if (w < 900) inner.classList.add('bp-sm');
+    });
+    this._ro.observe(inner);
   }
 
   _update() {
