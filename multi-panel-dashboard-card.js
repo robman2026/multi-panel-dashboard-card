@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.3.0";
+const CARD_VERSION = "2.3.2";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -214,12 +214,13 @@ var STYLES = [
   ".sec-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}",
   ".divider{height:1px;background:rgba(255,255,255,.05);margin:14px 0;}",
   ".cam-strip{display:grid;gap:8px;}",
-  ".cam-tile{border-radius:11px;overflow:hidden;background:#090d1a;border:1px solid rgba(255,255,255,.07);position:relative;cursor:pointer;transition:border-color .2s;min-height:130px;}",
+  ".cam-tile{border-radius:11px;overflow:hidden;background:#090d1a;border:1px solid rgba(255,255,255,.07);position:relative;cursor:pointer;transition:border-color .2s;min-height:90px;}",
   ".cam-tile:hover{border-color:rgba(79,163,224,.35);}",
   "mpd-cam-stream{display:block;width:100%;}",
-  ".cam-placeholder{width:100%;min-height:130px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1220,#111827);}",
+  ".cam-placeholder{width:100%;min-height:90px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1220,#111827);}",
   ".bottom-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--mpd-cols,4),minmax(0,1fr));}",
   ".mpd-inner.bp-sm .bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr));}",
+  ".mpd-inner.bp-sm .cam-tile,.mpd-inner.bp-xs .cam-tile{min-height:0;}",
   ".mpd-inner.bp-xs .bottom-grid{grid-template-columns:repeat(1,minmax(0,1fr));}",
   ".mpd-inner.bp-sm .sec{letter-spacing:.06em;font-size:8px;}",
   ".mpd-inner.bp-sm .gauge-tile,.mpd-inner.bp-sm .power-tile{padding:7px 5px;gap:6px;}",
@@ -996,34 +997,16 @@ class MpdCamStream extends LitElement {
     return html`
       <div class="stream-wrap" @click="${function(){self._fireMoreInfo();}}">
         <ha-camera-stream allow-exoplayer muted playsinline></ha-camera-stream>
-        <div class="stream-overlay">
-          <span class="stream-label">${(this.label || '').toUpperCase()}</span>
-          <div class="stream-right">
-            <span class="stream-live">● LIVE</span>
-            <button class="stream-fs-btn" title="Fullscreen"
-              @click="${function(e){e.stopPropagation();self._fireMoreInfo();}}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
-                <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
-              </svg>
-            </button>
-          </div>
-        </div>
+    
       </div>`;
   }
 
   static get styles() {
     return css`
       :host{display:block;}
-      .stream-wrap{position:relative;border-radius:11px;overflow:hidden;background:#0a0e1a;border:1px solid rgba(255,255,255,.08);min-height:130px;cursor:pointer;}
+      .stream-wrap{position:relative;border-radius:11px;overflow:hidden;background:#0a0e1a;border:1px solid rgba(255,255,255,.08);min-height:90px;cursor:pointer;}
       ha-camera-stream{width:100%;display:block;max-height:350px;object-fit:cover;--video-border-radius:0;}
-      .stream-overlay{position:absolute;bottom:0;left:0;right:0;padding:8px 12px;background:linear-gradient(transparent,rgba(0,0,0,.6));display:flex;justify-content:space-between;align-items:flex-end;}
-      .stream-label{font-size:9px;letter-spacing:1px;color:rgba(255,255,255,.5);text-transform:uppercase;}
-      .stream-live{font-size:8px;letter-spacing:1px;color:#6ddb99;font-weight:600;border:1px solid rgba(109,219,153,.4);padding:2px 6px;border-radius:4px;}
-      .stream-right{display:flex;align-items:center;gap:6px;}
-      .stream-fs-btn{width:26px;height:26px;border-radius:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.75);transition:background .2s;padding:0;}
-      .stream-fs-btn:hover{background:rgba(79,163,224,.3);color:#fff;}
+      
       .stream-fs-btn:active{transform:scale(.92);}
     `;
   }
