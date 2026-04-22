@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.2.0";
+const CARD_VERSION = "2.2.1";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -126,7 +126,7 @@ function gaugeSVG(size, outerPct, outerColor, innerPct, innerColor) {
   var o1 = c1 * (1 - Math.max(0, Math.min(1, outerPct)));
   var o2 = c2 * (1 - Math.max(0, Math.min(1, innerPct)));
   var oc = outerColor || '#4fa3e0', ic = innerColor || '#6ddb99';
-  return '<svg width="100%" height="100%" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible;display:block">' +
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible;display:block">' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r1 + '" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="3.5"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r1 + '" fill="none" stroke="' + oc + '" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="' + c1.toFixed(1) + '" stroke-dashoffset="' + o1.toFixed(1) + '" transform="rotate(-90 ' + cx + ' ' + cx + ')" style="filter:drop-shadow(0 0 4px ' + oc + ')"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r2 + '" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="2.5"/>' +
@@ -137,7 +137,7 @@ function gaugeSVG(size, outerPct, outerColor, innerPct, innerColor) {
 function saltSVG(size, pct, color) {
   var r = size * 0.42, cx = size / 2;
   var c = 2 * Math.PI * r, off = c * (1 - Math.max(0, Math.min(1, pct)));
-  return '<svg width="100%" height="100%" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible;display:block">' +
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="overflow:visible;display:block">' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="5"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 ' + cx + ' ' + cx + ')" style="filter:drop-shadow(0 0 4px ' + color + ')"/>' +
     '</svg>';
@@ -148,7 +148,7 @@ function powerSVG(size, pct, color) {
   var full = 2 * Math.PI * r;
   var arc  = full * 0.75;
   var fill = Math.max(0, Math.min(arc, pct * arc));
-  return '<svg width="100%" height="100%" viewBox="0 0 ' + size + ' ' + size + '" style="transform:rotate(-135deg);overflow:visible;display:block">' +
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="transform:rotate(-135deg);overflow:visible;display:block">' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="4" stroke-dasharray="' + arc.toFixed(1) + ' ' + (full - arc).toFixed(1) + '" stroke-linecap="round"/>' +
     '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="4" stroke-dasharray="' + fill.toFixed(1) + ' ' + (full - fill).toFixed(1) + '" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ' + color + ')"/>' +
     '</svg>';
@@ -185,7 +185,7 @@ function getStubConfig() {
     sensors_columns:  2,
     gauges:          [{ temp_entity: '', humidity_entity: '', label: 'Room 1',
                         temp_thresholds: JSON.stringify(DEFAULT_THRESHOLDS.temperature),
-                        hum_thresholds:  JSON.stringify(DEFAULT_THRESHOLDS.humidity), gauge_size: 64 }],
+                        hum_thresholds:  JSON.stringify(DEFAULT_THRESHOLDS.humidity), gauge_size: 54 }],
     gauges_columns:   2,
     power_circuits:  [{ entity: '', label: 'Circuit 1', energy_entity: '', current_entity: '', max_w: 3000 }],
     power_columns:    2,
@@ -208,7 +208,8 @@ var STYLES = [
   "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');",
   ":host{display:block;font-family:'DM Sans',sans-serif;}",
   "*{box-sizing:border-box;margin:0;padding:0}",
-  ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;container-type:inline-size;container-name:mpdcard;}",
+  ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;}",".mpd-inner{container-type:inline-size;container-name:mpdcard;}",
+  
   ".mpd-card::before{content:'';position:absolute;width:300px;height:300px;border-radius:50%;top:-100px;right:-80px;background:#4fa3e0;filter:blur(80px);opacity:.06;pointer-events:none;}",
   ".sec{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.22);font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;}",
   ".sec-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}",
@@ -257,14 +258,14 @@ var STYLES = [
   ".gauge-grid.gcols-2 .g-name,.gauge-grid.gcols-3 .g-name{text-align:center;}",
   ".gauge-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".gauge-tile:hover{background:rgba(255,255,255,.06);}",
-  ".gauge-wrap{position:relative;min-width:0;width:100%;aspect-ratio:1;max-width:72px;}",
+  ".gauge-wrap{position:relative;flex-shrink:0;width:54px;height:54px;}",
   ".gauge-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}",
   ".g-val{font-size:12px;font-weight:600;display:block;line-height:1.15;font-family:'DM Mono',monospace;}",
   ".g-sub{font-size:8px;display:block;margin-top:1px;font-family:'DM Mono',monospace;}",
   ".g-name{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.28);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;}",
   ".salt-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 12px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".salt-tile:hover{background:rgba(255,255,255,.06);}",
-  ".salt-wrap{position:relative;min-width:0;width:64px;flex-shrink:1;}",
+  ".salt-wrap{position:relative;flex-shrink:0;width:60px;height:60px;}",
   ".salt-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}",
   ".s-val{font-size:11px;font-weight:600;color:rgba(255,255,255,.9);font-family:'DM Mono',monospace;display:block;line-height:1.1;}",
   ".s-pct{font-size:8px;color:rgba(255,255,255,.38);display:block;}",
@@ -280,7 +281,7 @@ var STYLES = [
   ".power-grid.pcols-2 .power-name,.power-grid.pcols-3 .power-name{text-align:center;}",
   ".power-tile{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px;padding:10px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;min-width:0;overflow:hidden;}",
   ".power-tile:hover{background:rgba(255,255,255,.06);}",
-  ".power-arc-wrap{position:relative;min-width:0;width:60px;flex-shrink:1;aspect-ratio:1;}",
+  ".power-arc-wrap{position:relative;flex-shrink:0;width:52px;height:52px;}",
   ".power-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}",
   ".p-val{font-size:12px;font-weight:600;color:rgba(255,255,255,.9);font-family:'DM Mono',monospace;line-height:1;}",
   ".p-unit{font-size:7px;color:rgba(255,255,255,.35);letter-spacing:.04em;text-transform:uppercase;}",
@@ -402,7 +403,7 @@ class MultiPanelDashboardCard extends HTMLElement {
     // Climate gauges
     var gCols = parseInt(cfg.gauges_columns) || 2;
     var gaugesHTML = (cfg.gauges || []).map(function(g, i) {
-      var size      = parseInt(g.gauge_size) || 64;
+      var size      = parseInt(g.gauge_size) || 54;
       var tempVal   = stateNum(hass, g.temp_entity), humVal = stateNum(hass, g.humidity_entity);
       var tempTh    = parseTh(g.temp_thresholds, DEFAULT_THRESHOLDS.temperature);
       var humTh     = parseTh(g.hum_thresholds,  DEFAULT_THRESHOLDS.humidity);
@@ -411,7 +412,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       var tempStr   = g.temp_entity     ? tempVal.toFixed(1) + '°C' : '—';
       var humStr    = g.humidity_entity ? humVal.toFixed(1)  + '%'  : '—';
       return '<div class="gauge-tile" data-action="more-info" data-entity="' + (g.temp_entity||'') + '" data-idx="' + i + '">' +
-        '<div class="gauge-wrap">' +
+        '<div class="gauge-wrap" style="width:' + size + 'px;height:' + size + 'px">' +
         gaugeSVG(size, tempPct, tempColor, humPct, humColor) +
         '<div class="gauge-center">' +
         '<span class="g-val" id="g-temp-' + i + '" style="color:' + tempColor + '">' + tempStr + '</span>' +
@@ -428,7 +429,7 @@ class MultiPanelDashboardCard extends HTMLElement {
     var saltTh      = parseTh(cfg.salt_thresholds, DEFAULT_THRESHOLDS.salt);
     var saltColor   = colorFromThresholds(parseFloat(saltPctDisp), saltTh);
     var saltWarn    = parseFloat(saltPctDisp) < (cfg.salt_warn_threshold || 30);
-    var saltSize    = 64;
+    var saltSize    = 60;
     var saltHTML    = cfg.salt_entity ? (
       '<div class="divider" style="margin:10px 0 8px"></div>' +
       '<div class="sec" style="margin-bottom:8px">' +
@@ -436,7 +437,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         (cfg.label_salt || 'Salt Level') +
       '</div>' +
       '<div class="salt-tile" data-action="more-info" data-entity="' + cfg.salt_entity + '">' +
-        '<div class="salt-wrap">' +
+        '<div class="salt-wrap" style="width:' + saltSize + 'px;height:' + saltSize + 'px">' +
           saltSVG(saltSize, saltPct, saltColor) +
           '<div class="salt-center">' +
             '<span class="s-val">' + (saltVal > 0 ? saltVal.toFixed(2)+'m' : '—') + '</span>' +
@@ -454,7 +455,7 @@ class MultiPanelDashboardCard extends HTMLElement {
 
     // Power
     var pCols = parseInt(cfg.power_columns) || 2;
-    var pSize = pCols >= 2 ? 60 : 68;
+    var pSize = pCols >= 2 ? 52 : 60;
     var powerHTML = (cfg.power_circuits || []).map(function(p, i) {
       var watts   = stateNum(hass, p.entity);
       var maxW    = parseFloat(p.max_w) || 3000;
@@ -466,7 +467,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       var subs = (energy  ? '<div class="p-sub"><div class="p-sub-val">' + energy  + 'kWh</div><div class="p-sub-lbl">Energy</div></div>'  : '') +
                  (current ? '<div class="p-sub"><div class="p-sub-val">' + current + 'A</div><div class="p-sub-lbl">Current</div></div>' : '');
       return '<div class="power-tile" data-action="more-info" data-entity="' + (p.entity||'') + '" data-idx="' + i + '">' +
-        '<div class="power-arc-wrap">' +
+        '<div class="power-arc-wrap" style="width:' + pSize + 'px;height:' + pSize + 'px">' +
           powerSVG(pSize, pct, pcolor) +
           '<div class="power-center">' +
             '<span class="p-val" style="color:' + pcolor + '">' + Math.round(watts) + '</span>' +
@@ -515,7 +516,7 @@ class MultiPanelDashboardCard extends HTMLElement {
     ) : '';
 
     return '<style>' + STYLES + '</style>' +
-      '<div class="mpd-card">' +
+      '<div class="mpd-card"><div class="mpd-inner">' +
         '<div class="sec"><span class="sec-dot" style="background:#4fa3e0;box-shadow:0 0 5px #4fa3e0"></span>' + (cfg.label_surveillance||'Surveillance') + '</div>' +
         '<div class="cam-strip" style="grid-template-columns:repeat(' + camCols + ',1fr)">' + camsHTML + '</div>' +
         '<div class="divider"></div>' +
@@ -567,7 +568,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       if (tEl) { tEl.textContent = g.temp_entity     ? tVal.toFixed(1)+'°C' : '—'; tEl.style.color = tColor; }
       if (hEl) { hEl.textContent = g.humidity_entity ? hVal.toFixed(1)+'%'  : '—'; hEl.style.color = hColor; }
       if (card) {
-        var size = parseInt(g.gauge_size) || 64;
+        var size = parseInt(g.gauge_size) || 54;
         var r1 = size*0.41, r2 = size*0.32;
         var c1 = 2*Math.PI*r1, c2 = 2*Math.PI*r2;
         var circles = card.querySelectorAll('circle');
@@ -812,13 +813,13 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <label class="el">Humidity entity</label>
             ${self._entitySearch('gh_'+i, g.humidity_entity, function(v){self._updateItem('gauges',i,'humidity_entity',v);}, ['sensor'], '— select humidity sensor —')}
             ${self._txt('Label', g.label, function(v){self._updateItem('gauges',i,'label',v);}, 'Room name')}
-            ${self._num('Gauge size (px)', g.gauge_size, function(v){self._updateItem('gauges',i,'gauge_size',parseInt(v)||64);}, '64')}
+            ${self._num('Gauge size (px)', g.gauge_size, function(v){self._updateItem('gauges',i,'gauge_size',parseInt(v)||54);}, '54')}
             <label class="el">Temp thresholds (JSON)</label>
             <input class="ei mono" type="text" .value="${g.temp_thresholds||''}" placeholder='[{"max":25,"color":"#6ddb99"},...]' @change="${function(e){self._updateItem('gauges',i,'temp_thresholds',e.target.value);}}" />
             <label class="el">Humidity thresholds (JSON)</label>
             <input class="ei mono" type="text" .value="${g.hum_thresholds||''}" placeholder='[{"max":60,"color":"#6ddb99"},...]' @change="${function(e){self._updateItem('gauges',i,'hum_thresholds',e.target.value);}}" />
           </div>`; })}
-        <button class="ba" @click="${function(){self._addItem('gauges',{temp_entity:'',humidity_entity:'',label:'',temp_thresholds:JSON.stringify(DEFAULT_THRESHOLDS.temperature),hum_thresholds:JSON.stringify(DEFAULT_THRESHOLDS.humidity),gauge_size:64});}}">+ Add Gauge</button>
+        <button class="ba" @click="${function(){self._addItem('gauges',{temp_entity:'',humidity_entity:'',label:'',temp_thresholds:JSON.stringify(DEFAULT_THRESHOLDS.temperature),hum_thresholds:JSON.stringify(DEFAULT_THRESHOLDS.humidity),gauge_size:54});}}">+ Add Gauge</button>
       </div>`;
   }
 
