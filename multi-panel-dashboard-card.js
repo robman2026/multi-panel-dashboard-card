@@ -7,7 +7,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "2.3.2";
+const CARD_VERSION = "2.3.3";
 
 // LitElement base — needed for editor + MpdCamStream
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
@@ -431,6 +431,12 @@ class MultiPanelDashboardCard extends HTMLElement {
     var saltVal     = stateNum(hass, cfg.salt_entity);
     var saltPct     = (hass && cfg.salt_entity) ? calcSaltPct(hass, cfg) : 0;
     var saltPctDisp = (saltPct * 100).toFixed(1);
+    var saltRaw     = stateNum(hass, cfg.salt_entity);
+    var saltIsPct   = !cfg.salt_pct_entity && saltRaw > 1;
+    var saltPctVal  = cfg.salt_pct_entity ? stateNum(hass, cfg.salt_pct_entity) : (saltIsPct ? saltRaw : parseFloat(saltPctDisp));
+    var saltDistVal = !saltIsPct && !cfg.salt_pct_entity && saltRaw > 0 ? saltRaw : null;
+    var saltMainDisp = (hass && cfg.salt_entity) ? saltPctVal.toFixed(1) + '%' : '—';
+    var saltMetaDisp = (saltDistVal ? saltDistVal.toFixed(2) + ' m · ' : '') + saltPctDisp + '% full';
     var saltTh      = parseTh(cfg.salt_thresholds, DEFAULT_THRESHOLDS.salt);
     var saltColor   = colorFromThresholds(parseFloat(saltPctDisp), saltTh);
     var saltWarn    = parseFloat(saltPctDisp) < (cfg.salt_warn_threshold || 30);
@@ -445,14 +451,14 @@ class MultiPanelDashboardCard extends HTMLElement {
         '<div class="salt-wrap" style="width:' + saltSize + 'px;height:' + saltSize + 'px">' +
           saltSVG(saltSize, saltPct, saltColor) +
           '<div class="salt-center">' +
-            '<span class="s-val">' + (saltVal > 0 ? saltVal.toFixed(2)+'m' : '—') + '</span>' +
-            '<span class="s-pct">' + saltPctDisp + '%</span>' +
+            '<span class="s-val">' + (hass && cfg.salt_entity ? saltMainDisp : '—') + '</span>' +
+            '<span class="s-pct">' + (saltDistVal !== null && saltDistVal > 0 ? saltDistVal.toFixed(2)+'m' : '') + '</span>' +
           '</div>' +
         '</div>' +
         '<div class="salt-info">' +
           '<div class="salt-title">' + (cfg.salt_label || 'Salt Level') + '</div>' +
           '<div class="salt-bar-wrap"><div class="salt-bar" style="width:' + saltPctDisp + '%;background:' + saltColor + '"></div></div>' +
-          '<div class="salt-meta">' + (saltVal > 0 ? saltVal.toFixed(2)+' m · ' : '') + saltPctDisp + '% full</div>' +
+          '<div class="salt-meta">' + saltMetaDisp + '</div>' +
           (saltWarn ? '<div class="salt-warn"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffd26d" stroke-width="2.5" stroke-linecap="round"><path d="' + MDI.warning + '"/></svg>Below ' + (cfg.salt_warn_threshold||30) + '% — buy salt!</div>' : '') +
         '</div>' +
       '</div>'
@@ -610,6 +616,12 @@ class MultiPanelDashboardCard extends HTMLElement {
         var saltVal     = stateNum(hass, cfg.salt_entity);
         var saltPct     = calcSaltPct(hass, cfg);
         var saltPctDisp = (saltPct * 100).toFixed(1);
+        var saltRaw     = stateNum(hass, cfg.salt_entity);
+        var saltIsPct   = !cfg.salt_pct_entity && saltRaw > 1;
+        var saltPctVal  = cfg.salt_pct_entity ? stateNum(hass, cfg.salt_pct_entity) : (saltIsPct ? saltRaw : parseFloat(saltPctDisp));
+        var saltDistVal = !saltIsPct && !cfg.salt_pct_entity && saltRaw > 0 ? saltRaw : null;
+        var saltMainDisp = saltPctVal.toFixed(1) + '%';
+        var saltMetaDisp = (saltDistVal ? saltDistVal.toFixed(2) + ' m · ' : '') + saltPctDisp + '% full';
         var saltTh      = parseTh(cfg.salt_thresholds, DEFAULT_THRESHOLDS.salt);
         var saltColor   = colorFromThresholds(parseFloat(saltPctDisp), saltTh);
         var r = 64*0.42, c = 2*Math.PI*r, off = c*(1-saltPct);
@@ -618,9 +630,9 @@ class MultiPanelDashboardCard extends HTMLElement {
         var sMeta = saltCard.querySelector('.salt-meta');
         var sBar  = saltCard.querySelector('.salt-bar');
         var sCir  = saltCard.querySelectorAll('circle')[1];
-        if (sVal)  sVal.textContent  = saltVal > 0 ? saltVal.toFixed(2)+'m' : '—';
-        if (sPct)  sPct.textContent  = saltPctDisp + '%';
-        if (sMeta) sMeta.textContent = (saltVal > 0 ? saltVal.toFixed(2)+' m · ' : '') + saltPctDisp + '% full';
+        if (sVal)  sVal.textContent  = saltMainDisp;
+        if (sPct)  sPct.textContent  = (saltDistVal !== null && saltDistVal > 0 ? saltDistVal.toFixed(2)+'m' : '');
+        if (sMeta) sMeta.textContent = saltMetaDisp;
         if (sBar)  { sBar.style.width = saltPctDisp+'%'; sBar.style.background = saltColor; }
         if (sCir)  { sCir.setAttribute('stroke', saltColor); sCir.setAttribute('stroke-dashoffset', off.toFixed(1)); }
       }
@@ -1004,7 +1016,7 @@ class MpdCamStream extends LitElement {
   static get styles() {
     return css`
       :host{display:block;}
-      .stream-wrap{position:relative;border-radius:11px;overflow:hidden;background:#0a0e1a;border:1px solid rgba(255,255,255,.08);min-height:80px;cursor:pointer;}
+      .stream-wrap{position:relative;border-radius:11px;overflow:hidden;background:#0a0e1a;border:1px solid rgba(255,255,255,.08);min-height:90px;cursor:pointer;}
       ha-camera-stream{width:100%;display:block;max-height:350px;object-fit:cover;--video-border-radius:0;}
       
       .stream-fs-btn:active{transform:scale(.92);}
