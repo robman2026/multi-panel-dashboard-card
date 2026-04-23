@@ -201,7 +201,7 @@ var STYLES = [
   "*{box-sizing:border-box;margin:0;padding:0}",
   ".mpd-card{background:#181c27;border-radius:24px;border:1px solid rgba(255,255,255,.07);box-shadow:0 4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);padding:18px;position:relative;overflow:hidden;}",".mpd-inner{width:100%;}",
   ".mpd-card::before{content:'';position:absolute;width:300px;height:300px;border-radius:50%;top:-100px;right:-80px;background:#4fa3e0;filter:blur(80px);opacity:.06;pointer-events:none;}",
-  ".sec{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.22);font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;}",
+  ".sec{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.9);font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;}",
   ".sec-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}",
   ".divider{height:1px;background:rgba(255,255,255,.05);margin:14px 0;}",
   ".cam-strip{display:grid;gap:8px;}",
