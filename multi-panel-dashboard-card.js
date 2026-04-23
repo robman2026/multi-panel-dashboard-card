@@ -564,7 +564,7 @@ class MultiPanelDashboardCard extends HTMLElement {
     (cfg.sensors || []).forEach(function(s, i) {
       var tile = sr.querySelector('.sensor-tile[data-idx="' + i + '"]'); if (!tile) return;
       var state = stateVal(hass, s.entity), on = isOn(state), cat = s.category||'sensor', unavail = isUnavail(state);
-      var disp = unavail?'—':cat==='motion'?(on?'Motion':'Clear'):cat==='door'?(on?'Open':'Closed'):cat==='light'?(on?'On':'Off'):cat==='person'?(on?'Home':'Away'):stateLabel(state);
+      var disp = unavail?'—':cat==='motion'?(on?'Detected':'Clear'):cat==='door'?(on?'Open':'Closed'):cat==='light'?(on?'On':'Off'):cat==='person'?(on?'Present':'Clear'):stateLabel(state);
       var valEl = tile.querySelector('.sensor-val'); if (!valEl) return;
       valEl.className   = 'sensor-val' + (cat==='motion'&&on?' sv-motion':cat==='door'&&on?' sv-open':on?' sv-on':!unavail&&!on?' sv-off':'');
       valEl.textContent = disp;
