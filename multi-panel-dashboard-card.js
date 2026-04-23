@@ -269,7 +269,7 @@ var STYLES = [
   ".salt-title{font-size:9px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.8);margin-bottom:5px;}",
   ".salt-bar-wrap{background:rgba(255,255,255,.06);border-radius:3px;height:3px;overflow:hidden;margin-bottom:4px;}",
   ".salt-bar{height:3px;border-radius:3px;transition:width .6s;}",
-  ".salt-meta{font-size:8px;color:rgba(255,255,255,.25);font-family:'DM Mono',monospace;}",
+  ".salt-meta{font-size:8px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;}",
   ".salt-warn{font-size:8px;color:#ffd26d;margin-top:3px;display:flex;align-items:center;gap:3px;}",
   ".power-grid{display:grid;gap:7px;min-width:0;}",
   ".power-grid.pcols-1 .power-tile{flex-direction:row;}.power-grid.pcols-1 .power-name{text-align:left;}",
