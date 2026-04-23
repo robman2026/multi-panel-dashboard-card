@@ -98,7 +98,7 @@ const DEFAULT_THRESHOLDS = {
     { max: 999, color: '#6ddb99' },
   ],
   power: [
-    { max: 0,    color: 'rgba(255,255,255,.15)' },
+    { max: 0,    color: 'rgba(255,255,255,.8)' },
     { max: 500,  color: '#6ddb99' },
     { max: 1500, color: '#e0b44f' },
     { max: 9999, color: '#e05050' },
