@@ -1145,23 +1145,22 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 
   async firstUpdated() {
-    // Confirmed working pattern (from HA boilerplate) for loading lazy picker elements:
-    // createCardElement({type:'entities'}) + getConfigElement() forces loading of
-    // ha-entity-picker, ha-device-picker, ha-icon-picker and their internal combobox
-    try {
-      if (!customElements.get('ha-entity-picker')) {
-        const helpers = await window.loadCardHelpers();
-        const c = await helpers.createCardElement({ type: 'entities', entities: [] });
-        await c.constructor.getConfigElement();
-      }
-    } catch (e) { /* already loaded or unavailable */ }
-    await Promise.allSettled([
-      customElements.whenDefined('ha-entity-picker'),
-      customElements.whenDefined('ha-device-picker'),
-      customElements.whenDefined('ha-icon-picker'),
-    ]);
-    this._loadedPickers = true;
-    this.requestUpdate();
+    // Fire-and-forget: attempt to load picker elements, then re-render.
+    // We never block render on this — a timeout ensures we always show the editor.
+    const load = async () => {
+      try {
+        if (!customElements.get('ha-entity-picker')) {
+          const helpers = await window.loadCardHelpers();
+          const c = await helpers.createCardElement({ type: 'entities', entities: [] });
+          await c.constructor.getConfigElement();
+        }
+      } catch (_) {}
+      this._loadedPickers = true;
+      this.requestUpdate();
+    };
+    // Always mark loaded after 3s maximum, even if the above fails
+    const timeout = setTimeout(() => { this._loadedPickers = true; this.requestUpdate(); }, 3000);
+    load().then(() => clearTimeout(timeout));
   }
 
   setConfig(config) {
@@ -1668,10 +1667,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
   // ── Main render — no custom tabs, just sections ───────────────────────────
   render() {
     if (!this._config) return html``;
-    // Show a loading state until HA picker elements are confirmed loaded
-    if (!this._loadedPickers) {
-      return html`<div style="padding:16px;color:var(--secondary-text-color,#94a3b8);font-size:13px;">Loading editor…</div>`;
-    }
+    // Pickers load async — render immediately, they will appear when ready
 
     const cfg = this._config;
     const counts = {
