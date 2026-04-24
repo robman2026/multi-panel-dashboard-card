@@ -1343,7 +1343,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Camera ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('cameras', i)}">Remove</button>
           </div>
-          ${self._renderDeviceEntityPicker('cam_' + i, cam.entity,
+          ${self._renderEntityPicker(cam.entity,
             (v) => {
               self._updateItem('cameras', i, 'entity', v);
               if (v && !cam.label) {
@@ -1378,7 +1378,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Switch ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('switches', i)}">Remove</button>
           </div>
-          ${self._renderDeviceEntityPicker('sw_' + i, sw.entity,
+          ${self._renderEntityPicker(sw.entity,
             (v) => {
               self._updateItem('switches', i, 'entity', v);
               if (v && !sw.label) {
@@ -1414,7 +1414,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Sensor ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('sensors', i)}">Remove</button>
           </div>
-          ${self._renderDeviceEntityPicker('sens_' + i, s.entity,
+          ${self._renderEntityPicker(s.entity,
             (v) => {
               self._updateItem('sensors', i, 'entity', v);
               if (v && !s.label) {
@@ -1544,7 +1544,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Circuit ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('power_circuits', i)}">Remove</button>
           </div>
-          ${self._renderDeviceEntityPicker('pwr_' + i, p.entity,
+          ${self._renderEntityPicker(p.entity,
             (v) => {
               self._updateItem('power_circuits', i, 'entity', v);
               if (v && !p.label) {
