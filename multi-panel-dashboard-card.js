@@ -74,13 +74,22 @@ function mdiIcon(name, color, size) {
 
 function renderIcon(iconName, color, size) {
   if (!iconName) return mdiIcon('sensor', color, size);
-  const hasMdi     = iconName.startsWith('mdi:');
-  const knownLocal = MDI[iconName.replace('mdi:', '')];
-  if (hasMdi || !knownLocal) {
-    const n = hasMdi ? iconName : 'mdi:' + iconName;
-    return '<ha-icon icon="' + n + '" style="color:' + color + ';--mdc-icon-size:' + size + 'px;display:inline-flex;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;"></ha-icon>';
+  size = size || 18;
+  color = color || 'rgba(255,255,255,.38)';
+
+  // Any icon with a colon is a prefixed icon set (mdi:, phu:, hass:, custom:, game:, si:, etc.)
+  // Pass it directly to ha-icon which handles all registered icon sets in HA.
+  if (iconName.includes(':')) {
+    return '<ha-icon icon="' + iconName + '" style="color:' + color + ';--mdc-icon-size:' + size + 'px;display:inline-flex;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;"></ha-icon>';
   }
-  return mdiIcon(iconName, color, size);
+
+  // No prefix — check if it matches a local MDI shorthand (e.g. 'camera', 'bulb')
+  if (MDI[iconName]) {
+    return mdiIcon(iconName, color, size);
+  }
+
+  // Unknown bare string — try as mdi: prefix (legacy fallback)
+  return '<ha-icon icon="mdi:' + iconName + '" style="color:' + color + ';--mdc-icon-size:' + size + 'px;display:inline-flex;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;"></ha-icon>';
 }
 
 // ════════════════════════════════════════════════════════════════════════════
