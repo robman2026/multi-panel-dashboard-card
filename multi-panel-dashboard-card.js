@@ -1122,24 +1122,24 @@ class MultiPanelDashboardCard extends HTMLElement {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// EDITOR (Pi-hole style, HA-native pickers, area-filtered)
+// EDITOR — Pi-hole style: Device → Entity → Name → Icon → Config
+// No custom tabs (HA provides Config / Visibility / Layout natively).
+// All sections are collapsible. Layout is a bottom section.
 // ════════════════════════════════════════════════════════════════════════════
 class MultiPanelDashboardCardEditor extends LitElement {
   static get properties() {
     return {
       hass:             {},
       _config:          { state: true },
-      _tab:             { state: true },
-      _area:            { state: true },
       _openSections:    { state: true },
+      _deviceIds:       { state: true },
     };
   }
 
   constructor() {
     super();
-    this._tab = 'config';
-    this._area = '';
     this._openSections = { header: true };
+    this._deviceIds = {}; // editor-only: tracks selected device per item (e.g. cam_0, sw_1)
   }
 
   setConfig(config) {
@@ -1159,7 +1159,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
     this._fire();
   }
   _setDeep(path, value) {
-    // path like ['devices','mower','entity']
     const cfg = JSON.parse(JSON.stringify(this._config));
     let cur = cfg;
     for (let i = 0; i < path.length - 1; i++) {
@@ -1178,6 +1177,11 @@ class MultiPanelDashboardCardEditor extends LitElement {
     const arr = (this._config[key] || []).slice();
     arr.splice(idx, 1);
     this._set(key, arr);
+    // Clean up device tracking
+    const devKey = key.replace(/s$/, '') + '_' + idx;
+    const newDevIds = Object.assign({}, this._deviceIds);
+    delete newDevIds[devKey];
+    this._deviceIds = newDevIds;
   }
   _updateItem(key, idx, field, value) {
     const arr = (this._config[key] || []).slice();
@@ -1189,63 +1193,110 @@ class MultiPanelDashboardCardEditor extends LitElement {
     this._openSections = Object.assign({}, this._openSections, { [id]: !this._openSections[id] });
   }
 
-  // ── Area filter: compute list of entity IDs that belong to selected area ──
-  _entityIdsForArea() {
-    if (!this._area || !this.hass) return null; // null = no filter → show all
-    const ids = [];
+  _setDeviceId(itemKey, deviceId) {
+    this._deviceIds = Object.assign({}, this._deviceIds, { [itemKey]: deviceId });
+  }
+
+  // ── Get entity IDs belonging to a device ──────────────────────────────────
+  _entitiesForDevice(deviceId) {
+    if (!deviceId || !this.hass) return null;
     const entities = this.hass.entities || {};
-    const devices  = this.hass.devices  || {};
+    const ids = [];
     Object.keys(entities).forEach((eid) => {
       const e = entities[eid];
-      if (!e) return;
-      if (e.area_id && e.area_id === this._area) { ids.push(eid); return; }
-      // Inherit from device's area if entity has no explicit area
-      if (e.device_id && devices[e.device_id] && devices[e.device_id].area_id === this._area) {
-        ids.push(eid);
-      }
+      if (e && e.device_id === deviceId) ids.push(eid);
     });
-    return ids.length ? ids : []; // empty array = filter matched nothing (intentional)
+    return ids;
+  }
+
+  // ── Resolve device_id from an entity_id (for pre-populating device picker) ──
+  _deviceForEntity(entityId) {
+    if (!entityId || !this.hass) return '';
+    const entities = this.hass.entities || {};
+    const e = entities[entityId];
+    return e ? (e.device_id || '') : '';
   }
 
   // ── Atomic editor widgets ─────────────────────────────────────────────────
-  _renderEntityPicker(value, onChange, domains, placeholder) {
-    const includeList = this._entityIdsForArea();
-    const self = this;
-    // Note: ha-entity-picker accepts .includeEntities (filtered) OR .includeDomains
+
+  // Pi-hole style: Device picker → Entity picker filtered to that device
+  _renderDeviceEntityPicker(itemKey, entityValue, onEntityChange, domains, entityLabel) {
+    // Resolve current device: either from editor state, or inferred from current entity
+    let curDeviceId = this._deviceIds[itemKey];
+    if (!curDeviceId && entityValue) {
+      curDeviceId = this._deviceForEntity(entityValue);
+    }
+    const entitiesForDev = curDeviceId ? this._entitiesForDevice(curDeviceId) : null;
+    // If device selected, filter entity list to that device + optional domain filter
+    let includeEntities = undefined;
+    if (entitiesForDev && domains && domains.length) {
+      includeEntities = entitiesForDev.filter((eid) => {
+        const domain = eid.split('.')[0];
+        return domains.includes(domain);
+      });
+    } else if (entitiesForDev) {
+      includeEntities = entitiesForDev;
+    }
+
     return html`
-      <ha-entity-picker
-        .hass=${this.hass}
-        .value=${value || ''}
-        .includeEntities=${includeList || undefined}
-        .includeDomains=${domains && domains.length ? domains : undefined}
-        allow-custom-entity
-        .placeholder=${placeholder || ''}
-        @value-changed=${(e) => { const v = e.detail.value || ''; if (v !== (value || '')) onChange(v); }}>
-      </ha-entity-picker>
+      <div class="ed-field">
+        <label class="ed-label">Device</label>
+        <ha-device-picker
+          .hass=${this.hass}
+          .value=${curDeviceId || ''}
+          @value-changed=${(e) => {
+            const devId = e.detail.value || '';
+            this._setDeviceId(itemKey, devId);
+          }}
+        ></ha-device-picker>
+      </div>
+      <div class="ed-field">
+        <label class="ed-label">${entityLabel || 'Entity'}</label>
+        <ha-entity-picker
+          .hass=${this.hass}
+          .value=${entityValue || ''}
+          .includeEntities=${includeEntities || undefined}
+          .includeDomains=${(!includeEntities && domains && domains.length) ? domains : undefined}
+          allow-custom-entity
+          @value-changed=${(e) => {
+            const v = e.detail.value || '';
+            if (v !== (entityValue || '')) onEntityChange(v);
+          }}
+        ></ha-entity-picker>
+      </div>
+    `;
+  }
+
+  // Simple entity picker (no device step) — for secondary entities like battery, energy, etc.
+  _renderEntityPicker(value, onChange, domains, label) {
+    return html`
+      <div class="ed-field">
+        <label class="ed-label">${label || 'Entity'}</label>
+        <ha-entity-picker
+          .hass=${this.hass}
+          .value=${value || ''}
+          .includeDomains=${domains && domains.length ? domains : undefined}
+          allow-custom-entity
+          @value-changed=${(e) => {
+            const v = e.detail.value || '';
+            if (v !== (value || '')) onChange(v);
+          }}
+        ></ha-entity-picker>
+      </div>
     `;
   }
 
   _renderIconPicker(value, onChange, placeholder) {
     return html`
-      <ha-icon-picker
-        .hass=${this.hass}
-        .value=${value || ''}
-        .placeholder=${placeholder || 'mdi:...'}
-        @value-changed=${(e) => { const v = e.detail.value || ''; if (v !== (value || '')) onChange(v); }}>
-      </ha-icon-picker>
-    `;
-  }
-
-  _renderAreaPicker() {
-    return html`
-      <ha-area-picker
-        .hass=${this.hass}
-        .value=${this._area || ''}
-        @value-changed=${(e) => {
-          this._area = e.detail.value || '';
-          this.requestUpdate();
-        }}>
-      </ha-area-picker>
+      <div class="ed-field">
+        <label class="ed-label">Icon</label>
+        <ha-icon-picker
+          .hass=${this.hass}
+          .value=${value || ''}
+          .placeholder=${placeholder || 'mdi:...'}
+          @value-changed=${(e) => { const v = e.detail.value || ''; if (v !== (value || '')) onChange(v); }}
+        ></ha-icon-picker>
+      </div>
     `;
   }
 
@@ -1327,20 +1378,14 @@ class MultiPanelDashboardCardEditor extends LitElement {
       ${this._seg('Title Position', cfg.title_position || 'left',
         [{ val: 'left', label: 'Left' }, { val: 'center', label: 'Center' }],
         (v) => this._set('title_position', v))}
-      <div class="ed-field">
-        <label class="ed-label">Card Icon</label>
-        ${this._renderIconPicker(cfg.card_icon, (v) => this._set('card_icon', v), 'mdi:view-dashboard')}
-      </div>
+      ${this._renderIconPicker(cfg.card_icon, (v) => this._set('card_icon', v), 'mdi:view-dashboard')}
       ${this._toggle('Show Date & Time', cfg.show_datetime, (v) => this._set('show_datetime', v))}
       ${this._toggle('Show Status Dot', cfg.show_status_dot, (v) => this._set('show_status_dot', v))}
       ${cfg.show_status_dot ? html`
-        <div class="ed-field">
-          <label class="ed-label">Status Entity (optional)</label>
-          ${this._renderEntityPicker(cfg.status_entity,
-            (v) => this._set('status_entity', v),
-            ['binary_sensor','sensor','switch','light'],
-            '— optional —')}
-        </div>
+        ${this._renderEntityPicker(cfg.status_entity,
+          (v) => this._set('status_entity', v),
+          ['binary_sensor','sensor','switch','light'],
+          'Status Entity (optional)')}
       ` : ''}
     `;
   }
@@ -1356,23 +1401,17 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Camera ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('cameras', i)}">Remove</button>
           </div>
-          <div class="ed-field">
-            <label class="ed-label">Entity</label>
-            ${self._renderEntityPicker(cam.entity,
-              (v) => {
-                self._updateItem('cameras', i, 'entity', v);
-                if (v && !cam.label) {
-                  const fn = stateAttr(self.hass, v, 'friendly_name');
-                  if (fn) self._updateItem('cameras', i, 'label', fn);
-                }
-              },
-              ['camera'], 'Select camera')}
-          </div>
+          ${self._renderDeviceEntityPicker('cam_' + i, cam.entity,
+            (v) => {
+              self._updateItem('cameras', i, 'entity', v);
+              if (v && !cam.label) {
+                const fn = stateAttr(self.hass, v, 'friendly_name');
+                if (fn) self._updateItem('cameras', i, 'label', fn);
+              }
+            },
+            ['camera'], 'Entity')}
           ${self._txt('Label', cam.label, (v) => self._updateItem('cameras', i, 'label', v), 'Camera name')}
-          <div class="ed-field">
-            <label class="ed-label">Icon</label>
-            ${self._renderIconPicker(cam.icon, (v) => self._updateItem('cameras', i, 'icon', v), 'mdi:cctv')}
-          </div>
+          ${self._renderIconPicker(cam.icon, (v) => self._updateItem('cameras', i, 'icon', v), 'mdi:cctv')}
         </div>
       `)}
       <button class="btn-add" @click="${() => self._addItem('cameras', { entity: '', label: '', icon: 'camera' })}">+ Add Camera</button>
@@ -1397,23 +1436,17 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Switch ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('switches', i)}">Remove</button>
           </div>
-          <div class="ed-field">
-            <label class="ed-label">Entity</label>
-            ${self._renderEntityPicker(sw.entity,
-              (v) => {
-                self._updateItem('switches', i, 'entity', v);
-                if (v && !sw.label) {
-                  const fn = stateAttr(self.hass, v, 'friendly_name');
-                  if (fn) self._updateItem('switches', i, 'label', fn);
-                }
-              },
-              ['switch','light','input_boolean','fan','automation','script','binary_sensor'], 'Select entity')}
-          </div>
+          ${self._renderDeviceEntityPicker('sw_' + i, sw.entity,
+            (v) => {
+              self._updateItem('switches', i, 'entity', v);
+              if (v && !sw.label) {
+                const fn = stateAttr(self.hass, v, 'friendly_name');
+                if (fn) self._updateItem('switches', i, 'label', fn);
+              }
+            },
+            ['switch','light','input_boolean','fan','automation','script','binary_sensor'], 'Entity')}
           ${self._txt('Label', sw.label, (v) => self._updateItem('switches', i, 'label', v), 'Switch name')}
-          <div class="ed-field">
-            <label class="ed-label">Icon</label>
-            ${self._renderIconPicker(sw.icon, (v) => self._updateItem('switches', i, 'icon', v), 'mdi:toggle-switch')}
-          </div>
+          ${self._renderIconPicker(sw.icon, (v) => self._updateItem('switches', i, 'icon', v), 'mdi:toggle-switch')}
           ${self._select('Category', sw.category || 'switch', catOpts, (v) => self._updateItem('switches', i, 'category', v))}
         </div>
       `)}
@@ -1439,30 +1472,23 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Sensor ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('sensors', i)}">Remove</button>
           </div>
-          <div class="ed-field">
-            <label class="ed-label">Entity</label>
-            ${self._renderEntityPicker(s.entity,
-              (v) => {
-                self._updateItem('sensors', i, 'entity', v);
-                if (v && !s.label) {
-                  const fn = stateAttr(self.hass, v, 'friendly_name');
-                  if (fn) self._updateItem('sensors', i, 'label', fn);
+          ${self._renderDeviceEntityPicker('sens_' + i, s.entity,
+            (v) => {
+              self._updateItem('sensors', i, 'entity', v);
+              if (v && !s.label) {
+                const fn = stateAttr(self.hass, v, 'friendly_name');
+                if (fn) self._updateItem('sensors', i, 'label', fn);
+              }
+              if (v) {
+                const dc = stateAttr(self.hass, v, 'device_class') || '';
+                if (isMotionSensor(v, dc) && !s.category) {
+                  self._updateItem('sensors', i, 'category', 'motion');
                 }
-                // Auto-detect motion category
-                if (v) {
-                  const dc = stateAttr(self.hass, v, 'device_class') || '';
-                  if (isMotionSensor(v, dc) && !s.category) {
-                    self._updateItem('sensors', i, 'category', 'motion');
-                  }
-                }
-              },
-              ['binary_sensor','sensor','input_boolean','switch','light'], 'Select entity')}
-          </div>
+              }
+            },
+            ['binary_sensor','sensor','input_boolean','switch','light'], 'Entity')}
           ${self._txt('Label', s.label, (v) => self._updateItem('sensors', i, 'label', v), 'Sensor name')}
-          <div class="ed-field">
-            <label class="ed-label">Icon</label>
-            ${self._renderIconPicker(s.icon, (v) => self._updateItem('sensors', i, 'icon', v), 'mdi:sensor')}
-          </div>
+          ${self._renderIconPicker(s.icon, (v) => self._updateItem('sensors', i, 'icon', v), 'mdi:sensor')}
           ${self._select('Category', s.category || 'sensor', catOpts, (v) => self._updateItem('sensors', i, 'category', v))}
         </div>
       `)}
@@ -1481,18 +1507,12 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Gauge ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('gauges', i)}">Remove</button>
           </div>
-          <div class="ed-field">
-            <label class="ed-label">Temperature Entity</label>
-            ${self._renderEntityPicker(g.temp_entity,
-              (v) => self._updateItem('gauges', i, 'temp_entity', v),
-              ['sensor'], 'Select temp sensor')}
-          </div>
-          <div class="ed-field">
-            <label class="ed-label">Humidity Entity</label>
-            ${self._renderEntityPicker(g.humidity_entity,
-              (v) => self._updateItem('gauges', i, 'humidity_entity', v),
-              ['sensor'], 'Select humidity sensor')}
-          </div>
+          ${self._renderEntityPicker(g.temp_entity,
+            (v) => self._updateItem('gauges', i, 'temp_entity', v),
+            ['sensor'], 'Temperature Entity')}
+          ${self._renderEntityPicker(g.humidity_entity,
+            (v) => self._updateItem('gauges', i, 'humidity_entity', v),
+            ['sensor'], 'Humidity Entity')}
           ${self._txt('Label', g.label, (v) => self._updateItem('gauges', i, 'label', v), 'Room name')}
           ${self._num('Gauge size (px)', g.gauge_size, (v) => self._updateItem('gauges', i, 'gauge_size', parseInt(v) || 54), '54')}
           <div class="ed-field">
@@ -1529,24 +1549,18 @@ class MultiPanelDashboardCardEditor extends LitElement {
         </div>
         ${this._toggle('Enable Mower', m.enabled, (v) => self._setDeep(['devices','mower','enabled'], v))}
         ${m.enabled ? html`
-          <div class="ed-field">
-            <label class="ed-label">Mower Entity</label>
-            ${self._renderEntityPicker(m.entity,
-              (v) => {
-                self._setDeep(['devices','mower','entity'], v);
-                if (v && !m.label) {
-                  const fn = stateAttr(self.hass, v, 'friendly_name');
-                  if (fn) self._setDeep(['devices','mower','label'], fn);
-                }
-              },
-              ['lawn_mower','vacuum'], 'Select mower')}
-          </div>
-          <div class="ed-field">
-            <label class="ed-label">Battery Entity (optional)</label>
-            ${self._renderEntityPicker(m.battery_entity,
-              (v) => self._setDeep(['devices','mower','battery_entity'], v),
-              ['sensor'], 'Select battery sensor')}
-          </div>
+          ${self._renderDeviceEntityPicker('mower_main', m.entity,
+            (v) => {
+              self._setDeep(['devices','mower','entity'], v);
+              if (v && !m.label) {
+                const fn = stateAttr(self.hass, v, 'friendly_name');
+                if (fn) self._setDeep(['devices','mower','label'], fn);
+              }
+            },
+            ['lawn_mower','vacuum'], 'Mower Entity')}
+          ${self._renderEntityPicker(m.battery_entity,
+            (v) => self._setDeep(['devices','mower','battery_entity'], v),
+            ['sensor'], 'Battery Entity (optional)')}
           ${self._txt('Display Name', m.label, (v) => self._setDeep(['devices','mower','label'], v), 'Mower')}
         ` : ''}
       </div>
@@ -1559,21 +1573,12 @@ class MultiPanelDashboardCardEditor extends LitElement {
     return html`
       ${this._txt('Section Label', cfg.label_salt, (v) => this._set('label_salt', v), 'Salt Level')}
       <p class="hint">Provide a % entity directly, OR a distance entity + max value for auto-calc.</p>
-      <div class="ed-field">
-        <label class="ed-label">Salt Distance Entity</label>
-        ${this._renderEntityPicker(cfg.salt_entity,
-          (v) => this._set('salt_entity', v), ['sensor'], 'Select salt sensor')}
-      </div>
-      <div class="ed-field">
-        <label class="ed-label">Salt % Entity (optional)</label>
-        ${this._renderEntityPicker(cfg.salt_pct_entity,
-          (v) => this._set('salt_pct_entity', v), ['sensor'], 'Select % sensor')}
-      </div>
-      <div class="ed-field">
-        <label class="ed-label">Salt Max Entity (optional)</label>
-        ${this._renderEntityPicker(cfg.salt_max_entity,
-          (v) => this._set('salt_max_entity', v), ['sensor'], 'Select max sensor')}
-      </div>
+      ${this._renderEntityPicker(cfg.salt_entity,
+        (v) => this._set('salt_entity', v), ['sensor'], 'Salt Distance Entity')}
+      ${this._renderEntityPicker(cfg.salt_pct_entity,
+        (v) => this._set('salt_pct_entity', v), ['sensor'], 'Salt % Entity (optional)')}
+      ${this._renderEntityPicker(cfg.salt_max_entity,
+        (v) => this._set('salt_max_entity', v), ['sensor'], 'Salt Max Entity (optional)')}
       ${this._txt('Salt Max Value', cfg.salt_max_value, (v) => this._set('salt_max_value', v), 'e.g. 0.31')}
       ${this._txt('Display Label', cfg.salt_label, (v) => this._set('salt_label', v), 'Salt Level')}
       ${this._num('Warn Below (%)', cfg.salt_warn_threshold, (v) => this._set('salt_warn_threshold', parseFloat(v) || 30), '30')}
@@ -1597,30 +1602,21 @@ class MultiPanelDashboardCardEditor extends LitElement {
             <span class="entity-item-num">Circuit ${i + 1}</span>
             <button class="btn-remove" @click="${() => self._removeItem('power_circuits', i)}">Remove</button>
           </div>
-          <div class="ed-field">
-            <label class="ed-label">Power Entity (W)</label>
-            ${self._renderEntityPicker(p.entity,
-              (v) => {
-                self._updateItem('power_circuits', i, 'entity', v);
-                if (v && !p.label) {
-                  const fn = stateAttr(self.hass, v, 'friendly_name');
-                  if (fn) self._updateItem('power_circuits', i, 'label', fn);
-                }
-              },
-              ['sensor'], 'Select power sensor')}
-          </div>
-          <div class="ed-field">
-            <label class="ed-label">Energy Entity (kWh) — optional</label>
-            ${self._renderEntityPicker(p.energy_entity,
-              (v) => self._updateItem('power_circuits', i, 'energy_entity', v),
-              ['sensor'], 'Select energy sensor')}
-          </div>
-          <div class="ed-field">
-            <label class="ed-label">Current Entity (A) — optional</label>
-            ${self._renderEntityPicker(p.current_entity,
-              (v) => self._updateItem('power_circuits', i, 'current_entity', v),
-              ['sensor'], 'Select current sensor')}
-          </div>
+          ${self._renderDeviceEntityPicker('pwr_' + i, p.entity,
+            (v) => {
+              self._updateItem('power_circuits', i, 'entity', v);
+              if (v && !p.label) {
+                const fn = stateAttr(self.hass, v, 'friendly_name');
+                if (fn) self._updateItem('power_circuits', i, 'label', fn);
+              }
+            },
+            ['sensor'], 'Power Entity (W)')}
+          ${self._renderEntityPicker(p.energy_entity,
+            (v) => self._updateItem('power_circuits', i, 'energy_entity', v),
+            ['sensor'], 'Energy Entity (kWh) — optional')}
+          ${self._renderEntityPicker(p.current_entity,
+            (v) => self._updateItem('power_circuits', i, 'current_entity', v),
+            ['sensor'], 'Current Entity (A) — optional')}
           ${self._txt('Label', p.label, (v) => self._updateItem('power_circuits', i, 'label', v), 'Circuit name')}
           ${self._num('Max Watts', p.max_w, (v) => self._updateItem('power_circuits', i, 'max_w', parseFloat(v) || 3000), '3000')}
         </div>
@@ -1631,39 +1627,23 @@ class MultiPanelDashboardCardEditor extends LitElement {
     `;
   }
 
-  // ── Layout tab ────────────────────────────────────────────────────────────
-  _layoutPanelContent() {
+  _layoutSectionContent() {
     const cfg = this._config, self = this;
     const colOpts = [
       { val: '1', label: '1' }, { val: '2', label: '2' },
       { val: '3', label: '3' }, { val: '4', label: '4' },
     ];
     return html`
-      <div class="ed-note">Set the number of columns for each grid section. Effective on desktop; narrower screens auto-collapse.</div>
-      ${this._select('Cameras Columns',           String(cfg.cameras_columns  || 3), colOpts, (v) => self._set('cameras_columns',  parseInt(v)))}
-      ${this._select('Switches Columns',          String(cfg.switches_columns || 2), colOpts, (v) => self._set('switches_columns', parseInt(v)))}
-      ${this._select('Sensors Columns',           String(cfg.sensors_columns  || 2), colOpts, (v) => self._set('sensors_columns',  parseInt(v)))}
-      ${this._select('Climate Gauge Columns',     String(cfg.gauges_columns   || 2), colOpts, (v) => self._set('gauges_columns',   parseInt(v)))}
-      ${this._select('Power Columns',             String(cfg.power_columns    || 2), colOpts, (v) => self._set('power_columns',    parseInt(v)))}
+      <p class="hint">Set the number of columns for each grid section. Narrower screens auto-collapse.</p>
+      ${this._select('Cameras Columns',       String(cfg.cameras_columns  || 3), colOpts, (v) => self._set('cameras_columns',  parseInt(v)))}
+      ${this._select('Switches Columns',      String(cfg.switches_columns || 2), colOpts, (v) => self._set('switches_columns', parseInt(v)))}
+      ${this._select('Sensors Columns',       String(cfg.sensors_columns  || 2), colOpts, (v) => self._set('sensors_columns',  parseInt(v)))}
+      ${this._select('Climate Gauge Columns', String(cfg.gauges_columns   || 2), colOpts, (v) => self._set('gauges_columns',   parseInt(v)))}
+      ${this._select('Power Columns',         String(cfg.power_columns    || 2), colOpts, (v) => self._set('power_columns',    parseInt(v)))}
     `;
   }
 
-  // ── Visibility tab (placeholder — HA handles this at card level) ──────────
-  _visibilityPanelContent() {
-    return html`
-      <div class="ed-note">
-        This card uses Home Assistant's native <b>conditional visibility</b>. To add visibility rules,
-        click the "Visibility" tab at the top of this editor (the one HA shows by default when you
-        save the card). This placeholder is here because HA exposes its own tab-bar above this editor.
-      </div>
-      <p style="font-size:13px;color:rgba(255,255,255,.5);padding:16px;text-align:center;line-height:1.5;">
-        No custom visibility rules required inside the card itself — visibility is handled by HA's
-        standard card framework.
-      </p>
-    `;
-  }
-
-  // ── Main render ───────────────────────────────────────────────────────────
+  // ── Main render — no custom tabs, just sections ───────────────────────────
   render() {
     if (!this._config) return html``;
 
@@ -1679,41 +1659,15 @@ class MultiPanelDashboardCardEditor extends LitElement {
 
     return html`
       <div class="ed-root">
-        <div class="ed-tabs">
-          <div class="ed-tab ${this._tab === 'config' ? 'active' : ''}"     @click="${() => { this._tab = 'config'; }}">Config</div>
-          <div class="ed-tab ${this._tab === 'visibility' ? 'active' : ''}" @click="${() => { this._tab = 'visibility'; }}">Visibility</div>
-          <div class="ed-tab ${this._tab === 'layout' ? 'active' : ''}"     @click="${() => { this._tab = 'layout'; }}">Layout</div>
-        </div>
-
-        ${this._tab === 'config' ? html`
-          <div class="ed-body">
-            <div class="ed-note">
-              <b>Smart prefill:</b> pick an area and every entity dropdown below filters to that area.
-              Clear the area to show all entities.
-            </div>
-            <div class="ed-field">
-              <label class="ed-label">Area (filter)</label>
-              ${this._renderAreaPicker()}
-            </div>
-
-            ${this._section('header',   'Header',             undefined,    this._headerSectionContent())}
-            ${this._section('cameras',  'Cameras',            counts.cameras,  this._camerasSectionContent())}
-            ${this._section('switches', 'Switches',           counts.switches, this._switchesSectionContent())}
-            ${this._section('sensors',  'Sensors',            counts.sensors,  this._sensorsSectionContent())}
-            ${this._section('climate',  'Climate (gauges)',   counts.gauges,   this._climateSectionContent())}
-            ${this._section('devices',  'Devices',            deviceCount,     this._devicesSectionContent())}
-            ${this._section('salt',     'Salt Level',         undefined,       this._saltSectionContent())}
-            ${this._section('power',    'Power Circuits',     counts.power,    this._powerSectionContent())}
-          </div>
-        ` : ''}
-
-        ${this._tab === 'visibility' ? html`
-          <div class="ed-body">${this._visibilityPanelContent()}</div>
-        ` : ''}
-
-        ${this._tab === 'layout' ? html`
-          <div class="ed-body">${this._layoutPanelContent()}</div>
-        ` : ''}
+        ${this._section('header',   'Header',             undefined,       this._headerSectionContent())}
+        ${this._section('cameras',  'Cameras',            counts.cameras,  this._camerasSectionContent())}
+        ${this._section('switches', 'Switches',           counts.switches, this._switchesSectionContent())}
+        ${this._section('sensors',  'Sensors',            counts.sensors,  this._sensorsSectionContent())}
+        ${this._section('climate',  'Climate (gauges)',   counts.gauges,   this._climateSectionContent())}
+        ${this._section('devices',  'Devices',            deviceCount,     this._devicesSectionContent())}
+        ${this._section('salt',     'Salt Level',         undefined,       this._saltSectionContent())}
+        ${this._section('power',    'Power Circuits',     counts.power,    this._powerSectionContent())}
+        ${this._section('layout',   'Layout',             undefined,       this._layoutSectionContent())}
       </div>
     `;
   }
@@ -1722,32 +1676,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
     return css`
       :host { display: block; font-family: 'Segoe UI', system-ui, sans-serif; }
 
-      .ed-root { display: flex; flex-direction: column; }
-
-      .ed-tabs {
-        display: flex;
-        border-bottom: 1px solid rgba(255,255,255,.08);
-        background: var(--secondary-background-color, #1a1f2e);
-        border-radius: 8px 8px 0 0;
-      }
-      .ed-tab {
-        flex: 1;
-        padding: 12px 8px;
-        font-size: 13px; font-weight: 500;
-        color: var(--secondary-text-color, rgba(255,255,255,.5));
-        text-align: center;
-        cursor: pointer;
-        border-bottom: 2px solid transparent;
-        transition: color .15s, border-color .15s;
-        letter-spacing: .3px;
-      }
-      .ed-tab:hover { color: var(--primary-text-color, rgba(255,255,255,.75)); }
-      .ed-tab.active {
-        color: var(--primary-color, #4fa3e0);
-        border-bottom-color: var(--primary-color, #4fa3e0);
-      }
-
-      .ed-body { padding: 14px 12px 16px; }
+      .ed-root { display: flex; flex-direction: column; padding: 8px 0; }
 
       .ed-label {
         display: block;
@@ -1783,7 +1712,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
         line-height: 1.5;
       }
 
-      ha-entity-picker, ha-area-picker, ha-icon-picker {
+      ha-entity-picker, ha-device-picker, ha-icon-picker {
         display: block;
         width: 100%;
       }
@@ -1920,19 +1849,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
         color: #fff;
       }
 
-      /* Banner note */
-      .ed-note {
-        background: rgba(79,163,224,.08);
-        border: 1px solid rgba(79,163,224,.18);
-        border-radius: 8px;
-        padding: 10px 12px;
-        font-size: 12px;
-        color: var(--primary-text-color, rgba(255,255,255,.7));
-        margin-bottom: 12px;
-        line-height: 1.5;
-      }
-      .ed-note b { color: var(--primary-color, #4fa3e0); }
-
       .devices-future {
         font-size: 10px;
         color: var(--secondary-text-color, rgba(255,255,255,.38));
@@ -1943,8 +1859,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
 
       /* Mobile responsiveness */
       @media (max-width: 520px) {
-        .ed-tab { font-size: 12px; padding: 10px 4px; }
-        .ed-body { padding: 10px 8px 14px; }
         .ed-section-header { padding: 10px 12px; }
         .entity-item { padding: 8px; }
       }
