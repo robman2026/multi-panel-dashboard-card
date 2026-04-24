@@ -511,18 +511,37 @@ const STYLES = [
   ".mower-badge{font-size:9px;font-weight:600;padding:2px 7px;border-radius:10px;letter-spacing:.3px;}",
   ".mower-svg-wrap{flex-shrink:0;}",
 
-  // Neon glow theme — spinning conic-gradient border
-  // :host(.mpd-neon-host) overrides the default card appearance
-  ":host(.mpd-neon-host) .mpd-card{background:rgba(8,8,16,.95);border:none;box-shadow:none;position:relative;}",
-  ":host(.mpd-neon-host) .mpd-card::before{content:'';position:absolute;inset:-2px;border-radius:24px;z-index:0;background:conic-gradient(from var(--mpd-border-angle,0deg),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 35%,var(--mpd-neon-c3,#7c3aed) 55%,transparent 70%);animation:mpd-border-spin 4s linear infinite;filter:none;opacity:1;width:auto;height:auto;top:auto;right:auto;pointer-events:none;}",
-  ":host(.mpd-neon-host) .mpd-card::after{content:'';position:absolute;inset:-10px;border-radius:30px;z-index:-1;background:conic-gradient(from var(--mpd-border-angle,0deg),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 35%,transparent 70%);filter:blur(18px);opacity:.35;animation:mpd-border-spin 4s linear infinite;pointer-events:none;}",
-  ":host(.mpd-neon-host) .mpd-inner{background:rgba(8,8,16,.95);border-radius:22px;position:relative;z-index:1;backdrop-filter:blur(20px);}",
-  ":host(.mpd-neon-host) .sw-tile{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);}",
-  ":host(.mpd-neon-host) .sw-tile.sw-on{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.25);}",
-  ":host(.mpd-neon-host) .sensor-tile.motion-active{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.22);}",
-  ":host(.mpd-neon-host) .gauge-tile,.mpd-neon-host .salt-tile,.mpd-neon-host .power-tile{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);}",
-  ":host(.mpd-neon-host) .mpd-dot.online{background:#00d4ff;box-shadow:0 0 10px rgba(0,212,255,.9);}",
-  ":host(.mpd-neon-host) .sec-dot{box-shadow:0 0 6px currentColor;}",
+  // ── Neon Glow theme ──────────────────────────────────────────────────────────
+  // @property INSIDE shadow DOM works for element animations (not host-level).
+  // The rotating border uses .mpd-neon-ring::before — a positioned child element.
+  "@property --mpd-ba{syntax:'<angle>';initial-value:0deg;inherits:false}",
+  "@keyframes mpd-spin{to{--mpd-ba:360deg}}",
+
+  // Neon ring wrapper
+  ".mpd-neon-ring{position:relative;border-radius:26px;padding:2px;animation:mpd-spin 4s linear infinite;}",
+  ".mpd-neon-ring::before{content:'';position:absolute;inset:0;border-radius:26px;background:conic-gradient(from var(--mpd-ba),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 35%,var(--mpd-neon-c3,#7c3aed) 55%,transparent 70%);z-index:0;}",
+  ".mpd-neon-ring::after{content:'';position:absolute;inset:-8px;border-radius:32px;background:conic-gradient(from var(--mpd-ba),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 40%,transparent 70%);filter:blur(18px);opacity:.45;z-index:-1;}",
+  ".mpd-neon-ring .mpd-card{position:relative;z-index:1;border:none!important;box-shadow:none!important;border-radius:24px;backdrop-filter:blur(20px);}",
+
+  // Tile neon styles
+  ":host(.mpd-neon-host) .sw-tile{border-color:rgba(255,255,255,.1);transition:box-shadow .2s,border-color .2s,background .15s;}",
+  ":host(.mpd-neon-host) .sw-tile:hover{border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 10px rgba(0,212,255,.25);}",
+  ":host(.mpd-neon-host) .sw-tile.sw-on{background:rgba(0,212,255,.08);border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 12px rgba(0,212,255,.3);}",
+  ":host(.mpd-neon-host) .sw-tile.sw-motion{background:rgba(255,45,120,.08);border-color:var(--mpd-neon-c2,#ff0080);box-shadow:0 0 12px rgba(255,45,120,.3);}",
+  ":host(.mpd-neon-host) .sensor-tile{border-color:rgba(255,255,255,.08);transition:box-shadow .2s,border-color .2s;}",
+  ":host(.mpd-neon-host) .sensor-tile:hover{border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 10px rgba(0,212,255,.2);}",
+  ":host(.mpd-neon-host) .sensor-tile.motion-active{background:rgba(0,212,255,.08);border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 14px rgba(0,212,255,.35);}",
+  ":host(.mpd-neon-host) .gauge-tile{border-color:rgba(255,255,255,.08);transition:box-shadow .2s;}",
+  ":host(.mpd-neon-host) .gauge-tile:hover{border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 12px rgba(0,212,255,.2);}",
+  ":host(.mpd-neon-host) .salt-tile{border-color:rgba(255,255,255,.08);}",
+  ":host(.mpd-neon-host) .power-tile{border-color:rgba(255,255,255,.08);transition:box-shadow .2s;}",
+  ":host(.mpd-neon-host) .power-tile:hover{border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 10px rgba(0,212,255,.2);}",
+  ":host(.mpd-neon-host) .sensor-icon-wrap{border:1px solid rgba(255,255,255,.06);}",
+  ":host(.mpd-neon-host) .sensor-icon-wrap.motion-active{border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 8px rgba(0,212,255,.4);}",
+  ":host(.mpd-neon-host) .mpd-dot.online{background:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 12px var(--mpd-neon-c1,#00d4ff);}",
+  ":host(.mpd-neon-host) .sec-dot{filter:drop-shadow(0 0 4px currentColor);}",
+  ":host(.mpd-neon-host) .cam-tile{border-color:rgba(255,255,255,.08);transition:border-color .2s,box-shadow .2s;}",
+  ":host(.mpd-neon-host) .cam-tile:hover{border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 14px rgba(0,212,255,.3);}",
 
     "@keyframes mow-spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
   "@keyframes mow-spin-fast{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
@@ -719,7 +738,6 @@ function applyTheme(hostEl, themeName, neonColor) {
     }
   }
   if (t.neonBorder) {
-    _injectNeonProperty();
     hostEl.classList.add('mpd-neon-host');
   } else {
     hostEl.classList.remove('mpd-neon-host');
@@ -1105,14 +1123,17 @@ class MultiPanelDashboardCard extends HTMLElement {
       '<div class="divider"></div>'
     ) : '';
 
+    const isNeon = (cfg.theme === 'neon');
+    const cardOpen  = isNeon ? '<div class="mpd-neon-ring"><div class="mpd-card"><div class="mpd-inner">' : '<div class="mpd-card"><div class="mpd-inner">';
+    const cardClose = isNeon ? '</div></div></div>' : '</div></div>';
     return '<style>' + STYLES + '</style>' +
-      '<div class="mpd-card"><div class="mpd-inner">' +
+      cardOpen +
         headerHTML +
         camsSection +
         '<div class="bottom-grid" style="--mpd-cols:' + bottomCols + '">' +
           swSec + sensSec + climSec + devSec + powerSec +
         '</div>' +
-      '</div></div>';
+      cardClose;
   }
 
   _render() {
