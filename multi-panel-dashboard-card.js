@@ -28,7 +28,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-const CARD_VERSION = "3.0.0";
+const CARD_VERSION = "3.0.1";
 
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
 const html = LitElement.prototype.html;
@@ -1587,10 +1587,10 @@ class MultiPanelDashboardCardEditor extends LitElement {
 
   // ── Main render — no custom tabs, just sections ───────────────────────────
   render() {
-    if (!this._config) return html``;
-    // Pickers load async — render immediately, they will appear when ready
-
-    const cfg = this._config;
+    try {
+      if (!this._config) return html``;
+      // Pickers load async — render immediately, they will appear when ready
+      const cfg = this._config;
     const counts = {
       cameras:  (cfg.cameras || []).length,
       switches: (cfg.switches || []).length,
@@ -1613,6 +1613,10 @@ class MultiPanelDashboardCardEditor extends LitElement {
         ${this._section('layout',   'Layout',             undefined,       this._layoutSectionContent())}
       </div>
     `;
+    } catch(err) {
+      console.error('[MPD-CARD editor render error]', err);
+      return html`<div style="padding:16px;color:#ef4444;font-size:12px;font-family:monospace;white-space:pre-wrap">Editor error — check browser console (F12):\n${err && err.message ? err.message : String(err)}</div>`;
+    }
   }
 
   static get styles() {
