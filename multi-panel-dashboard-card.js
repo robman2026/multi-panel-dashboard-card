@@ -1145,21 +1145,21 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 
   async firstUpdated() {
-    // Force-load HA's lazy-loaded picker components so they render properly
-    const helpers = await (window.loadCardHelpers ? window.loadCardHelpers() : undefined);
-    if (helpers) {
-      // Creating a temporary entity-picker triggers HA to load all picker dependencies
-      const tempCard = await helpers.createCardElement({ type: 'entity', entity: 'sun.sun' });
-      if (tempCard) {
-        tempCard.hass = this.hass;
+    // Confirmed working pattern (from HA boilerplate) for loading lazy picker elements:
+    // createCardElement({type:'entities'}) + getConfigElement() forces loading of
+    // ha-entity-picker, ha-device-picker, ha-icon-picker and their internal combobox
+    try {
+      if (!customElements.get('ha-entity-picker')) {
+        const helpers = await window.loadCardHelpers();
+        const c = await helpers.createCardElement({ type: 'entities', entities: [] });
+        await c.constructor.getConfigElement();
       }
-    }
-    // Also explicitly wait for the custom elements to be defined
-    await Promise.all([
+    } catch (e) { /* already loaded or unavailable */ }
+    await Promise.allSettled([
       customElements.whenDefined('ha-entity-picker'),
       customElements.whenDefined('ha-device-picker'),
       customElements.whenDefined('ha-icon-picker'),
-    ].map(p => p.catch(() => {})));
+    ]);
     this._loadedPickers = true;
     this.requestUpdate();
   }
@@ -1668,6 +1668,10 @@ class MultiPanelDashboardCardEditor extends LitElement {
   // ── Main render — no custom tabs, just sections ───────────────────────────
   render() {
     if (!this._config) return html``;
+    // Show a loading state until HA picker elements are confirmed loaded
+    if (!this._loadedPickers) {
+      return html`<div style="padding:16px;color:var(--secondary-text-color,#94a3b8);font-size:13px;">Loading editor…</div>`;
+    }
 
     const cfg = this._config;
     const counts = {
