@@ -1132,7 +1132,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
       hass:             {},
       _config:          { state: true },
       _openSections:    { state: true },
-      _deviceIds:       { state: true },
       _loadedPickers:   { state: true },
     };
   }
@@ -1140,7 +1139,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
   constructor() {
     super();
     this._openSections = { header: true };
-    this._deviceIds = {}; // editor-only: tracks selected device per item (e.g. cam_0, sw_1)
     this._loadedPickers = false;
   }
 
@@ -1198,11 +1196,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
     const arr = (this._config[key] || []).slice();
     arr.splice(idx, 1);
     this._set(key, arr);
-    // Clean up device tracking
-    const devKey = key.replace(/s$/, '') + '_' + idx;
-    const newDevIds = Object.assign({}, this._deviceIds);
-    delete newDevIds[devKey];
-    this._deviceIds = newDevIds;
   }
   _updateItem(key, idx, field, value) {
     const arr = (this._config[key] || []).slice();
@@ -1214,79 +1207,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
     this._openSections = Object.assign({}, this._openSections, { [id]: !this._openSections[id] });
   }
 
-  _setDeviceId(itemKey, deviceId) {
-    this._deviceIds = Object.assign({}, this._deviceIds, { [itemKey]: deviceId });
-  }
-
-  // ── Get entity IDs belonging to a device ──────────────────────────────────
-  _entitiesForDevice(deviceId) {
-    if (!deviceId || !this.hass) return null;
-    const entities = this.hass.entities || {};
-    const ids = [];
-    Object.keys(entities).forEach((eid) => {
-      const e = entities[eid];
-      if (e && e.device_id === deviceId) ids.push(eid);
-    });
-    return ids;
-  }
-
-  // ── Resolve device_id from an entity_id (for pre-populating device picker) ──
-  _deviceForEntity(entityId) {
-    if (!entityId || !this.hass) return '';
-    const entities = this.hass.entities || {};
-    const e = entities[entityId];
-    return e ? (e.device_id || '') : '';
-  }
-
   // ── Atomic editor widgets ─────────────────────────────────────────────────
-
-  // Pi-hole style: Device picker → Entity picker filtered to that device
-  _renderDeviceEntityPicker(itemKey, entityValue, onEntityChange, domains, entityLabel) {
-    // Resolve current device: either from editor state, or inferred from current entity
-    let curDeviceId = this._deviceIds[itemKey];
-    if (!curDeviceId && entityValue) {
-      curDeviceId = this._deviceForEntity(entityValue);
-    }
-    const entitiesForDev = curDeviceId ? this._entitiesForDevice(curDeviceId) : null;
-    // If device selected, filter entity list to that device + optional domain filter
-    let includeEntities = undefined;
-    if (entitiesForDev && domains && domains.length) {
-      includeEntities = entitiesForDev.filter((eid) => {
-        const domain = eid.split('.')[0];
-        return domains.includes(domain);
-      });
-    } else if (entitiesForDev) {
-      includeEntities = entitiesForDev;
-    }
-
-    return html`
-      <div class="ed-field">
-        <label class="ed-label">Device</label>
-        <ha-device-picker
-          .hass=${this.hass}
-          .value=${curDeviceId || ''}
-          @value-changed=${(e) => {
-            const devId = e.detail.value || '';
-            this._setDeviceId(itemKey, devId);
-          }}
-        ></ha-device-picker>
-      </div>
-      <div class="ed-field">
-        <label class="ed-label">${entityLabel || 'Entity'}</label>
-        <ha-entity-picker
-          .hass=${this.hass}
-          .value=${entityValue || ''}
-          .includeEntities=${includeEntities || undefined}
-          .includeDomains=${(!includeEntities && domains && domains.length) ? domains : undefined}
-          allow-custom-entity
-          @value-changed=${(e) => {
-            const v = e.detail.value || '';
-            if (v !== (entityValue || '')) onEntityChange(v);
-          }}
-        ></ha-entity-picker>
-      </div>
-    `;
-  }
 
   // Simple entity picker (no device step) — for secondary entities like battery, energy, etc.
   _renderEntityPicker(value, onChange, domains, label) {
@@ -1570,7 +1491,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
         </div>
         ${this._toggle('Enable Mower', m.enabled, (v) => self._setDeep(['devices','mower','enabled'], v))}
         ${m.enabled ? html`
-          ${self._renderDeviceEntityPicker('mower_main', m.entity,
+          ${self._renderEntityPicker(m.entity,
             (v) => {
               self._setDeep(['devices','mower','entity'], v);
               if (v && !m.label) {
