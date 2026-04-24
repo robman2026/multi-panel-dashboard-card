@@ -315,6 +315,7 @@ function getStubConfig() {
   return {
     // Theme
     theme: 'default',
+    neon_color: 'cyan',
 
     // Header
     card_title:      'Dashboard',
@@ -509,7 +510,21 @@ const STYLES = [
   ".mower-ago{font-size:9px;color:rgba(255,255,255,.45);font-family:'DM Mono',monospace;}",
   ".mower-badge{font-size:9px;font-weight:600;padding:2px 7px;border-radius:10px;letter-spacing:.3px;}",
   ".mower-svg-wrap{flex-shrink:0;}",
-  "@keyframes mow-spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
+
+  // Neon glow theme — spinning conic-gradient border
+  // :host(.mpd-neon-host) overrides the default card appearance
+  ":host(.mpd-neon-host) .mpd-card{background:rgba(8,8,16,.95);border:none;box-shadow:none;position:relative;}",
+  ":host(.mpd-neon-host) .mpd-card::before{content:'';position:absolute;inset:-2px;border-radius:24px;z-index:0;background:conic-gradient(from var(--mpd-border-angle,0deg),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 35%,var(--mpd-neon-c3,#7c3aed) 55%,transparent 70%);animation:mpd-border-spin 4s linear infinite;filter:none;opacity:1;width:auto;height:auto;top:auto;right:auto;pointer-events:none;}",
+  ":host(.mpd-neon-host) .mpd-card::after{content:'';position:absolute;inset:-10px;border-radius:30px;z-index:-1;background:conic-gradient(from var(--mpd-border-angle,0deg),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 35%,transparent 70%);filter:blur(18px);opacity:.35;animation:mpd-border-spin 4s linear infinite;pointer-events:none;}",
+  ":host(.mpd-neon-host) .mpd-inner{background:rgba(8,8,16,.95);border-radius:22px;position:relative;z-index:1;backdrop-filter:blur(20px);}",
+  ":host(.mpd-neon-host) .sw-tile{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);}",
+  ":host(.mpd-neon-host) .sw-tile.sw-on{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.25);}",
+  ":host(.mpd-neon-host) .sensor-tile.motion-active{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.22);}",
+  ":host(.mpd-neon-host) .gauge-tile,.mpd-neon-host .salt-tile,.mpd-neon-host .power-tile{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);}",
+  ":host(.mpd-neon-host) .mpd-dot.online{background:#00d4ff;box-shadow:0 0 10px rgba(0,212,255,.9);}",
+  ":host(.mpd-neon-host) .sec-dot{box-shadow:0 0 6px currentColor;}",
+
+    "@keyframes mow-spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
   "@keyframes mow-spin-fast{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
   ".mow-spin{animation:mow-spin 1.8s linear infinite;}",
   ".mow-spin-fast{animation:mow-spin-fast .4s linear infinite;}",
@@ -619,19 +634,95 @@ const THEMES = {
       '--mpd-blob-color':   '#9c6b2f',
     },
   },
+  neon: {
+    label: 'Neon Glow',
+    font: 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap',
+    neonBorder: true,
+    vars: {
+      '--mpd-bg':           '#080810',
+      '--mpd-card-bg':      'rgba(8,8,16,.95)',
+      '--mpd-card-bg2':     'rgba(10,10,24,.97)',
+      '--mpd-border':       'transparent',
+      '--mpd-border2':      'transparent',
+      '--mpd-glow':         'none',
+      '--mpd-accent':       '#00d4ff',
+      '--mpd-accent2':      '#ff0080',
+      '--mpd-text':         '#ffffff',
+      '--mpd-text-dim':     'rgba(255,255,255,.7)',
+      '--mpd-text-muted':   '#475569',
+      '--mpd-font':         "'Outfit',sans-serif",
+      '--mpd-radius':       '22px',
+      '--mpd-tile-bg':      'rgba(255,255,255,.04)',
+      '--mpd-tile-border':  'rgba(255,255,255,.08)',
+      '--mpd-tile-hover':   'rgba(0,212,255,.07)',
+      '--mpd-divider':      'rgba(0,212,255,.1)',
+      '--mpd-header-sep':   'rgba(0,212,255,.12)',
+      '--mpd-sec-text':     '#00d4ff',
+      '--mpd-title-color':  '#ffffff',
+      '--mpd-date-color':   '#ff0080',
+      '--mpd-time-color':   'rgba(0,212,255,.7)',
+      '--mpd-cam-bg':       '#04040e',
+      '--mpd-blob-color':   '#00d4ff',
+      '--mpd-neon-c1':      '#00d4ff',
+      '--mpd-neon-c2':      '#ff0080',
+      '--mpd-neon-c3':      '#7c3aed',
+    },
+    palettes: {
+      cyan:   {
+        '--mpd-neon-c1': '#00d4ff', '--mpd-neon-c2': '#0080ff', '--mpd-neon-c3': '#7c3aed',
+        '--mpd-accent': '#00d4ff',  '--mpd-accent2': '#0080ff',
+        '--mpd-sec-text': '#00d4ff', '--mpd-date-color': '#0080ff', '--mpd-time-color': 'rgba(0,212,255,.7)',
+      },
+      pink:   {
+        '--mpd-neon-c1': '#ff2d78', '--mpd-neon-c2': '#ff8c00', '--mpd-neon-c3': '#ff2d78',
+        '--mpd-accent': '#ff2d78',  '--mpd-accent2': '#ff8c00',
+        '--mpd-sec-text': '#ff2d78', '--mpd-date-color': '#ff8c00', '--mpd-time-color': 'rgba(255,45,120,.7)',
+      },
+      purple: {
+        '--mpd-neon-c1': '#a855f7', '--mpd-neon-c2': '#06b6d4', '--mpd-neon-c3': '#a855f7',
+        '--mpd-accent': '#a855f7',  '--mpd-accent2': '#06b6d4',
+        '--mpd-sec-text': '#a855f7', '--mpd-date-color': '#06b6d4', '--mpd-time-color': 'rgba(168,85,247,.7)',
+      },
+    },
+  },
 };
 
-function applyTheme(hostEl, themeName) {
+// Inject @property rule into document head (not shadow DOM — @property requires global scope)
+function _injectNeonProperty() {
+  if (document.querySelector('style[data-mpd-neon]')) return;
+  const s = document.createElement('style');
+  s.dataset.mpdNeon = '1';
+  s.textContent = [
+    '@property --mpd-border-angle{syntax:"<angle>";initial-value:0deg;inherits:false}',
+    '@keyframes mpd-border-spin{to{--mpd-border-angle:360deg}}',
+  ].join('\n');
+  document.head.appendChild(s);
+}
+
+function applyTheme(hostEl, themeName, neonColor) {
   const t = THEMES[themeName] || THEMES.default;
   const vars = t.vars;
   Object.keys(vars).forEach(k => hostEl.style.setProperty(k, vars[k]));
+  // Apply neon color palette on top of base vars
+  if (t.palettes && neonColor && t.palettes[neonColor]) {
+    const pv = t.palettes[neonColor];
+    Object.keys(pv).forEach(k => hostEl.style.setProperty(k, pv[k]));
+  }
   hostEl.style.fontFamily = vars['--mpd-font'];
-  // Load extra font if needed (cyberpunk Orbitron)
-  if (t.font && !document.querySelector('link[data-mpd-font]')) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet'; link.href = t.font;
-    link.dataset.mpdFont = '1';
-    document.head.appendChild(link);
+  if (t.font) {
+    const fontKey = 'link[data-mpd-font="' + themeName + '"]';
+    if (!document.querySelector(fontKey)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet'; link.href = t.font;
+      link.setAttribute('data-mpd-font', themeName);
+      document.head.appendChild(link);
+    }
+  }
+  if (t.neonBorder) {
+    _injectNeonProperty();
+    hostEl.classList.add('mpd-neon-host');
+  } else {
+    hostEl.classList.remove('mpd-neon-host');
   }
 }
 
@@ -1029,7 +1120,7 @@ class MultiPanelDashboardCard extends HTMLElement {
     this._attachListeners();
     this._initStreams();
     this._startResizeObserver();
-    applyTheme(this, this._config.theme || 'default');
+    applyTheme(this, this._config.theme || 'default', this._config.neon_color || 'cyan');
     this._built = true;
   }
 
@@ -1455,6 +1546,9 @@ class MultiPanelDashboardCardEditor extends LitElement {
     const themeOpts = Object.keys(THEMES).map(k => ({ val: k, label: THEMES[k].label }));
     return html`
       ${this._seg('Theme', cfg.theme || 'default', themeOpts, (v) => this._set('theme', v))}
+      ${(cfg.theme === 'neon') ? this._seg('Neon Color', cfg.neon_color || 'cyan',
+        [{ val: 'cyan', label: '● Cyan' }, { val: 'pink', label: '● Pink' }, { val: 'purple', label: '● Purple' }],
+        (v) => this._set('neon_color', v)) : ''}
       ${this._txt('Card Title', cfg.card_title, (v) => this._set('card_title', v), 'Dashboard')}
       ${this._seg('Title Position', cfg.title_position || 'left',
         [{ val: 'left', label: 'Left' }, { val: 'center', label: 'Center' }],
