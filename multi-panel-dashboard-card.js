@@ -1133,6 +1133,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
       _config:          { state: true },
       _openSections:    { state: true },
       _deviceIds:       { state: true },
+      _loadedPickers:   { state: true },
     };
   }
 
@@ -1140,6 +1141,27 @@ class MultiPanelDashboardCardEditor extends LitElement {
     super();
     this._openSections = { header: true };
     this._deviceIds = {}; // editor-only: tracks selected device per item (e.g. cam_0, sw_1)
+    this._loadedPickers = false;
+  }
+
+  async firstUpdated() {
+    // Force-load HA's lazy-loaded picker components so they render properly
+    const helpers = await (window.loadCardHelpers ? window.loadCardHelpers() : undefined);
+    if (helpers) {
+      // Creating a temporary entity-picker triggers HA to load all picker dependencies
+      const tempCard = await helpers.createCardElement({ type: 'entity', entity: 'sun.sun' });
+      if (tempCard) {
+        tempCard.hass = this.hass;
+      }
+    }
+    // Also explicitly wait for the custom elements to be defined
+    await Promise.all([
+      customElements.whenDefined('ha-entity-picker'),
+      customElements.whenDefined('ha-device-picker'),
+      customElements.whenDefined('ha-icon-picker'),
+    ].map(p => p.catch(() => {})));
+    this._loadedPickers = true;
+    this.requestUpdate();
   }
 
   setConfig(config) {
