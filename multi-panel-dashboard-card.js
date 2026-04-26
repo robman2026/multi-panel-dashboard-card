@@ -456,7 +456,7 @@ const STYLES = [
   ".sensor-icon-wrap.motion-clear{background:rgba(255,255,255,.04);}",
   "@keyframes motion-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,170,80,.35);}50%{box-shadow:0 0 0 5px rgba(255,170,80,0);}}",
   ".motion-emoji{font-size:14px;line-height:1;}",
-  ".motion-emoji.clear{filter:grayscale(1) opacity(.5);}",
+  ".motion-emoji.clear{filter:grayscale(0) opacity(.9);}",
   ".sensor-name{font-size:8px;color:var(--mpd-text-dim,rgba(255,255,255,.7));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;min-width:0;}",
   ".sensor-val{font-size:9px;font-weight:500;font-family:'DM Mono',monospace;color:rgba(255,255,255,.8);flex-shrink:0;min-width:0;}",
   ".sv-on{color:#6dbfff;}.sv-open{color:#ffd26d;}.sv-motion{color:#ff8a6d;}.sv-off{color:rgba(255,255,255,.7);}",
