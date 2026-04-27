@@ -28,7 +28,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-const CARD_VERSION = "3.0.1";
+const CARD_VERSION = "3.1.0";
 
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
 const html = LitElement.prototype.html;
