@@ -1,6 +1,5 @@
 {
-  "name": "robman2026 Cards",
-  "filename": "dist/robman2026-cards.js",
-  "content_in_root": true,
-  "render_readme": true
+  "name": "Multi-Panel Dashboard Card",
+  "render_readme": true,
+  "filename": "multi-panel-dashboard-card.js"
 }
