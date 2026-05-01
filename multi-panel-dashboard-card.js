@@ -3,39 +3,32 @@
  * Unified single card: header + cameras + sections + devices (mower) + salt + power
  * Author: robman2026
  * GitHub: https://github.com/robman2026/multi-panel-dashboard-card
- * Version: 3.0.0
+ * Version: 3.2.0
  * License: MIT
  *
  * ─────────────────────────────────────────────────────────────────────────
- * v3.0.0 (BREAKING — editor rewrite)
- *  + Card header: configurable title (left/center), optional icon,
- *    optional live date/time (top-right), optional status dot
- *  + Motion icons ported from room-card: animated 🚶 active / dim clear state
- *  + NEW "Devices" section with Mower support
- *      · animated SVG (spinning wheels + blade when mowing)
- *      · battery bar, status badge, last-changed
- *      · action buttons (Start / Pause / Dock)
- *      · extensible DEVICE_TYPES registry for future device types
- *  + Editor rewritten with Pi-hole–style guided UX:
- *      · HA-native Config / Visibility / Layout tabs
- *      · Top-level ha-area-picker → smart prefills every entity dropdown
- *      · Clearing area → all entities available
- *      · Collapsible sections with live count badges
- *      · Per-entity cards with auto-filled name & icon
- *      · Responsive (works on desktop/tablet/mobile HA app)
- *  - Removed: runtime accordion_* flags (flat card layout always)
- *  - Removed: `Labels` tab (renaming integrated into each section)
+ * v3.2.0
+ *  + Frosted Glass Dark Mode (default theme only)
+ *      · New config keys: frosted_glass (bool), frosted_opacity (0.1–0.9),
+ *        frosted_blur (4–40 px)
+ *      · OFF by default — zero visual change for existing configs
+ *      · When ON: card background + ALL inner tiles (switch, sensor, gauge,
+ *        salt, power, mower, camera) use backdrop-filter blur + translucent bg
+ *      · Ignored when theme is cyberpunk / luxury / neon
+ *      · New "🎨 Appearance" accordion section added to visual editor
+ * ─────────────────────────────────────────────────────────────────────────
+ * v3.1.0 / v3.0.0 — see previous changelog entries
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-const CARD_VERSION = "3.1.0";
+const CARD_VERSION = "3.2.0";
 
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
 const html = LitElement.prototype.html;
 const css  = LitElement.prototype.css;
 
 // ════════════════════════════════════════════════════════════════════════════
-// MDI icon path constants for inline SVG rendering (same approach as v2.x)
+// MDI icon path constants for inline SVG rendering
 // ════════════════════════════════════════════════════════════════════════════
 const MDI = {
   camera:      'M17 10.5V7a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1v-3.5l4 4v-11l-4 4z',
@@ -76,24 +69,15 @@ function renderIcon(iconName, color, size) {
   if (!iconName) return mdiIcon('sensor', color, size);
   size = size || 18;
   color = color || 'rgba(255,255,255,.38)';
-
-  // Any icon with a colon is a prefixed icon set (mdi:, phu:, hass:, custom:, game:, si:, etc.)
-  // Pass it directly to ha-icon which handles all registered icon sets in HA.
   if (iconName.includes(':')) {
     return '<ha-icon icon="' + iconName + '" style="color:' + color + ';--mdc-icon-size:' + size + 'px;display:inline-flex;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;"></ha-icon>';
   }
-
-  // No prefix — check if it matches a local MDI shorthand (e.g. 'camera', 'bulb')
-  if (MDI[iconName]) {
-    return mdiIcon(iconName, color, size);
-  }
-
-  // Unknown bare string — try as mdi: prefix (legacy fallback)
+  if (MDI[iconName]) return mdiIcon(iconName, color, size);
   return '<ha-icon icon="mdi:' + iconName + '" style="color:' + color + ';--mdc-icon-size:' + size + 'px;display:inline-flex;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;"></ha-icon>';
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Motion sensor detection (ported from room-card)
+// Motion sensor detection
 // ════════════════════════════════════════════════════════════════════════════
 const MOTION_DC     = ["motion", "occupancy", "presence", "moving"];
 const MOTION_ACTIVE = ["on", "detected", "occupied", "home", "moving"];
@@ -203,7 +187,7 @@ function powerSVG(size, pct, color) {
     '</svg>';
 }
 
-// Animated mower SVG (ported from room-card)
+// Animated mower SVG
 function mowerSVG(state) {
   const isMowing    = state === "mowing";
   const isReturning = state === "returning";
@@ -278,14 +262,11 @@ function mowerSVG(state) {
 // Salt % calc
 // ════════════════════════════════════════════════════════════════════════════
 function calcSaltPct(hass, cfg) {
-  // Priority 1: explicit % entity — use its value directly (0-100 scale)
   if (cfg.salt_pct_entity && hass) {
     const pct = stateNum(hass, cfg.salt_pct_entity);
-    // Handle both 0-1 and 0-100 scales
     if (pct > 1) return Math.min(pct, 100) / 100;
     return Math.min(Math.max(pct, 0), 1);
   }
-  // Priority 2: fallback to salt_entity treated as raw %
   if (cfg.salt_entity && hass) {
     const val = stateNum(hass, cfg.salt_entity);
     if (val > 1) return Math.min(val, 100) / 100;
@@ -295,7 +276,7 @@ function calcSaltPct(hass, cfg) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Device-type registry (extensible for future device types)
+// Device-type registry
 // ════════════════════════════════════════════════════════════════════════════
 const DEVICE_TYPES = {
   mower: {
@@ -325,6 +306,11 @@ function getStubConfig() {
     // Theme
     theme: 'default',
     neon_color: 'cyan',
+
+    // ── NEW: Frosted Glass (default theme only) ──────────────────────────────
+    frosted_glass:   false,
+    frosted_opacity: 0.52,
+    frosted_blur:    22,
 
     // Header
     card_title:      'Dashboard',
@@ -388,9 +374,36 @@ const STYLES = [
   ":host{display:block;font-family:'DM Sans',sans-serif;}",
   "*{box-sizing:border-box;margin:0;padding:0}",
 
-  "ha-card{background:transparent!important;box-shadow:none!important;border:none!important;border-radius:0!important;}",":host{display:block;font-family:var(--mpd-font,'DM Sans',sans-serif);}",".mpd-card{background:var(--mpd-card-bg,linear-gradient(145deg,#1a1f35,#0f1628,#141929));border-radius:var(--mpd-radius,16px);border:1px solid var(--mpd-border,rgba(99,179,237,0.15));box-shadow:var(--mpd-glow,0 0 0 1px rgba(255,255,255,0.04),0 8px 32px rgba(0,0,0,0.6),0 0 60px rgba(99,179,237,0.05));padding:18px;position:relative;overflow:hidden;}",
+  "ha-card{background:transparent!important;box-shadow:none!important;border:none!important;border-radius:0!important;}",
+  ":host{display:block;font-family:var(--mpd-font,'DM Sans',sans-serif);}",
+  ".mpd-card{background:var(--mpd-card-bg,linear-gradient(145deg,#1a1f35,#0f1628,#141929));border-radius:var(--mpd-radius,16px);border:1px solid var(--mpd-border,rgba(99,179,237,0.15));box-shadow:var(--mpd-glow,0 0 0 1px rgba(255,255,255,0.04),0 8px 32px rgba(0,0,0,0.6),0 0 60px rgba(99,179,237,0.05));padding:18px;position:relative;overflow:hidden;}",
   ".mpd-inner{width:100%;position:relative;z-index:1;}",
   ".mpd-card::before{content:'';position:absolute;width:300px;height:300px;border-radius:50%;top:-100px;right:-80px;background:var(--mpd-blob-color,#4fa3e0);filter:blur(80px);opacity:.06;pointer-events:none;}",
+
+  // ── Frosted glass overrides (default theme only, activated by .mpd-frosted) ──
+  // Card shell
+  ".mpd-frosted{background:var(--mpd-fg-bg,rgba(8,14,30,0.52))!important;backdrop-filter:blur(var(--mpd-fg-blur,22px)) saturate(180%)!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px)) saturate(180%)!important;border:1px solid rgba(255,255,255,0.09)!important;box-shadow:0 8px 40px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.07)!important;}",
+  // Suppress the blob decoration so it doesn't bleed through the glass
+  ".mpd-frosted::before{display:none!important;}",
+  // All tile types in frosted mode
+  ".mpd-frosted .sw-tile{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;border-color:rgba(255,255,255,0.1)!important;}",
+  ".mpd-frosted .sw-tile:hover{background:rgba(255,255,255,0.09)!important;}",
+  ".mpd-frosted .sw-tile.sw-on{background:rgba(79,163,224,0.12)!important;border-color:rgba(79,163,224,0.28)!important;}",
+  ".mpd-frosted .sw-tile.sw-motion{background:rgba(255,170,80,0.12)!important;border-color:rgba(255,170,80,0.28)!important;}",
+  ".mpd-frosted .sensor-tile{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;border-color:rgba(255,255,255,0.1)!important;}",
+  ".mpd-frosted .sensor-tile:hover{background:rgba(255,255,255,0.09)!important;}",
+  ".mpd-frosted .sensor-tile.motion-active{background:rgba(255,170,80,0.12)!important;border-color:rgba(255,170,80,0.28)!important;}",
+  ".mpd-frosted .gauge-tile{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;border-color:rgba(255,255,255,0.1)!important;}",
+  ".mpd-frosted .gauge-tile:hover{background:rgba(255,255,255,0.09)!important;}",
+  ".mpd-frosted .salt-tile{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;border-color:rgba(255,255,255,0.1)!important;}",
+  ".mpd-frosted .salt-tile:hover{background:rgba(255,255,255,0.09)!important;}",
+  ".mpd-frosted .power-tile{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;border-color:rgba(255,255,255,0.1)!important;}",
+  ".mpd-frosted .power-tile:hover{background:rgba(255,255,255,0.09)!important;}",
+  ".mpd-frosted .mower-tile{background:rgba(34,197,94,0.07)!important;backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;border-color:rgba(34,197,94,0.18)!important;}",
+  ".mpd-frosted .mower-tile.st-error{background:rgba(239,68,68,0.07)!important;border-color:rgba(239,68,68,0.22)!important;}",
+  ".mpd-frosted .mower-tile.st-docked{background:rgba(99,179,237,0.06)!important;border-color:rgba(99,179,237,0.18)!important;}",
+  ".mpd-frosted .cam-tile{background:rgba(5,10,22,0.55)!important;backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;-webkit-backdrop-filter:blur(var(--mpd-fg-blur,22px))!important;border-color:rgba(255,255,255,0.1)!important;}",
+  ".mpd-frosted .cam-placeholder{background:rgba(5,10,22,0.55)!important;}",
 
   // Header
   ".mpd-header{display:flex;align-items:center;gap:10px;padding:0 0 14px;margin-bottom:14px;border-bottom:1px solid var(--mpd-header-sep,rgba(255,255,255,.05));position:relative;}",
@@ -443,7 +456,7 @@ const STYLES = [
   ".sw-state{font-size:8px;letter-spacing:.06em;text-transform:uppercase;font-family:'DM Mono',monospace;color:rgba(255,255,255,.28);}",
   ".sw-state.s-on{color:#6dbfff;}.sw-state.s-motion{color:#ffaa6d;}.sw-state.s-open{color:#ffd26d;}",
 
-  // Sensors (with motion icon treatment ported from room-card)
+  // Sensors (with motion icon treatment)
   ".sensor-grid{display:grid;gap:5px;min-width:0;}",
   ".sensor-grid.scols-1 .sensor-tile{flex-direction:row;padding:7px 9px;text-align:left;gap:8px;}",
   ".sensor-grid.scols-1 .sensor-name{flex:1;text-align:left;}",
@@ -521,12 +534,8 @@ const STYLES = [
   ".mower-svg-wrap{flex-shrink:0;}",
 
   // ── Neon Glow theme ──────────────────────────────────────────────────────────
-  // @property INSIDE shadow DOM works for element animations (not host-level).
-  // The rotating border uses .mpd-neon-ring::before — a positioned child element.
   "@property --mpd-ba{syntax:'<angle>';initial-value:0deg;inherits:false}",
   "@keyframes mpd-spin{to{--mpd-ba:360deg}}",
-
-  // Neon ring wrapper
   ".mpd-neon-ring{position:relative;border-radius:26px;padding:2px;animation:mpd-spin 4s linear infinite;}",
   ".mpd-neon-ring::before{content:'';position:absolute;inset:0;border-radius:26px;background:conic-gradient(from var(--mpd-ba),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 35%,var(--mpd-neon-c3,#7c3aed) 55%,transparent 70%);z-index:0;}",
   ".mpd-neon-ring::after{content:'';position:absolute;inset:-8px;border-radius:32px;background:conic-gradient(from var(--mpd-ba),transparent 0%,var(--mpd-neon-c1,#00d4ff) 15%,var(--mpd-neon-c2,#ff0080) 40%,transparent 70%);filter:blur(18px);opacity:.45;z-index:-1;}",
@@ -552,7 +561,7 @@ const STYLES = [
   ":host(.mpd-neon-host) .cam-tile{border-color:rgba(255,255,255,.08);transition:border-color .2s,box-shadow .2s;}",
   ":host(.mpd-neon-host) .cam-tile:hover{border-color:var(--mpd-neon-c1,#00d4ff);box-shadow:0 0 14px rgba(0,212,255,.3);}",
 
-    "@keyframes mow-spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
+  "@keyframes mow-spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
   "@keyframes mow-spin-fast{from{transform:rotate(0);}to{transform:rotate(360deg);}}",
   ".mow-spin{animation:mow-spin 1.8s linear infinite;}",
   ".mow-spin-fast{animation:mow-spin-fast .4s linear infinite;}",
@@ -569,12 +578,12 @@ const STYLES = [
 ].join('');
 
 // ════════════════════════════════════════════════════════════════════════════
-// THEME REGISTRY — add new themes here, each as a set of CSS custom properties
+// THEME REGISTRY
 // ════════════════════════════════════════════════════════════════════════════
 const THEMES = {
   default: {
     label: 'Dark Navy',
-    font: null, // uses embedded DM Sans
+    font: null,
     vars: {
       '--mpd-bg':           '#0f1628',
       '--mpd-card-bg':      'linear-gradient(145deg,#1a1f35 0%,#0f1628 50%,#141929 100%)',
@@ -715,7 +724,6 @@ const THEMES = {
   },
 };
 
-// Inject @property rule into document head (not shadow DOM — @property requires global scope)
 function _injectNeonProperty() {
   if (document.querySelector('style[data-mpd-neon]')) return;
   const s = document.createElement('style');
@@ -727,11 +735,11 @@ function _injectNeonProperty() {
   document.head.appendChild(s);
 }
 
-function applyTheme(hostEl, themeName, neonColor) {
+// ── applyTheme: sets CSS custom properties + frosted glass variables ──────────
+function applyTheme(hostEl, themeName, neonColor, cfg) {
   const t = THEMES[themeName] || THEMES.default;
   const vars = t.vars;
   Object.keys(vars).forEach(k => hostEl.style.setProperty(k, vars[k]));
-  // Apply neon color palette on top of base vars
   if (t.palettes && neonColor && t.palettes[neonColor]) {
     const pv = t.palettes[neonColor];
     Object.keys(pv).forEach(k => hostEl.style.setProperty(k, pv[k]));
@@ -750,6 +758,18 @@ function applyTheme(hostEl, themeName, neonColor) {
     hostEl.classList.add('mpd-neon-host');
   } else {
     hostEl.classList.remove('mpd-neon-host');
+  }
+
+  // ── Frosted glass custom properties (default theme only) ──────────────────
+  // We always clear first so switching themes removes stale frosted vars.
+  hostEl.style.removeProperty('--mpd-fg-bg');
+  hostEl.style.removeProperty('--mpd-fg-blur');
+
+  if (themeName === 'default' && cfg && cfg.frosted_glass) {
+    const opacity = Math.min(0.9, Math.max(0.1, parseFloat(cfg.frosted_opacity) || 0.52));
+    const blur    = Math.min(40,  Math.max(4,   parseFloat(cfg.frosted_blur)    || 22));
+    hostEl.style.setProperty('--mpd-fg-bg',   'rgba(8,14,30,' + opacity + ')');
+    hostEl.style.setProperty('--mpd-fg-blur',  blur + 'px');
   }
 }
 
@@ -771,9 +791,7 @@ class MultiPanelDashboardCard extends HTMLElement {
   static getStubConfig()    { return getStubConfig(); }
 
   setConfig(config) {
-    // Deep-ish merge with stub to ensure all keys present.
     this._config = Object.assign({}, getStubConfig(), config || {});
-    // devices is a nested object — ensure it's shape-correct
     this._config.devices = Object.assign({}, getStubConfig().devices, (config && config.devices) || {});
     this._config.devices.mower = Object.assign({}, getStubConfig().devices.mower, (config && config.devices && config.devices.mower) || {});
     this._built = false;
@@ -855,7 +873,6 @@ class MultiPanelDashboardCard extends HTMLElement {
       : '';
 
     const pos = cfg.title_position === 'center' ? 'pos-center' : 'pos-left';
-    // For centered title: title is absolutely positioned; we need a left spacer to balance flex
     const leftSpacer = cfg.title_position === 'center' ? '<div class="mpd-head-spacer"></div>' : '';
     return '<div class="mpd-header ' + pos + '">' + leftSpacer + titleHTML + rightHTML + '</div>';
   }
@@ -968,7 +985,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         '</div>';
     }).join('');
 
-    // Sensors — with motion-icon treatment ported from room-card
+    // Sensors
     const sCols = parseInt(cfg.sensors_columns) || 2;
     const sensHTML = (cfg.sensors || []).map(function(s, i) {
       const state = stateVal(hass, s.entity), on = isOn(state), cat = s.category || 'sensor', unavail = isUnavail(state);
@@ -1026,7 +1043,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         '</div>';
     }).join('');
 
-    // Salt — use salt_pct_entity for % display, salt_entity for distance sub-value
+    // Salt
     const hasSaltPct  = !!(hass && cfg.salt_pct_entity);
     const hasSaltDist = !!(hass && cfg.salt_entity);
     const hasSalt     = hasSaltPct || hasSaltDist;
@@ -1041,7 +1058,6 @@ class MultiPanelDashboardCard extends HTMLElement {
     const saltColor   = colorFromThresholds(parseFloat(saltPctDisp), saltTh);
     const saltWarn    = parseFloat(saltPctDisp) < (cfg.salt_warn_threshold || 30);
     const saltSize    = 60;
-    // Primary clickable entity: prefer pct entity, fallback to distance entity
     const saltClickEntity = cfg.salt_pct_entity || cfg.salt_entity || '';
     const saltHTML = hasSalt ? (
       '<div class="divider" style="margin:10px 0 8px"></div>' +
@@ -1132,9 +1148,16 @@ class MultiPanelDashboardCard extends HTMLElement {
       '<div class="divider"></div>'
     ) : '';
 
-    const isNeon = (cfg.theme === 'neon');
-    const cardOpen  = isNeon ? '<div class="mpd-neon-ring"><div class="mpd-card"><div class="mpd-inner">' : '<div class="mpd-card"><div class="mpd-inner">';
+    // ── Frosted glass class: only on default theme ───────────────────────────
+    const isNeon    = (cfg.theme === 'neon');
+    const isFrosted = (cfg.theme === 'default' || !cfg.theme) && !!cfg.frosted_glass;
+    const cardCls   = 'mpd-card' + (isFrosted ? ' mpd-frosted' : '');
+
+    const cardOpen  = isNeon
+      ? '<div class="mpd-neon-ring"><div class="' + cardCls + '"><div class="mpd-inner">'
+      : '<div class="' + cardCls + '"><div class="mpd-inner">';
     const cardClose = isNeon ? '</div></div></div>' : '</div></div>';
+
     return '<style>' + STYLES + '</style>' +
       cardOpen +
         headerHTML +
@@ -1150,7 +1173,7 @@ class MultiPanelDashboardCard extends HTMLElement {
     this._attachListeners();
     this._initStreams();
     this._startResizeObserver();
-    applyTheme(this, this._config.theme || 'default', this._config.neon_color || 'cyan');
+    applyTheme(this, this._config.theme || 'default', this._config.neon_color || 'cyan', this._config);
     this._built = true;
   }
 
@@ -1248,7 +1271,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       }
     });
 
-    // Salt — update using pct entity (primary) + distance entity (sub-value)
+    // Salt
     if (cfg.salt_pct_entity || cfg.salt_entity) {
       const saltCard = sr.querySelector('.salt-tile');
       if (saltCard) {
@@ -1299,7 +1322,7 @@ class MultiPanelDashboardCard extends HTMLElement {
       }
     });
 
-    // Mower — re-render the whole tile on state change (SVG state-dependent, simpler than per-attr updates)
+    // Mower
     const m = cfg.devices && cfg.devices.mower;
     if (m && m.enabled && m.entity) {
       const existing = sr.querySelector('[data-mower-entity]');
@@ -1309,9 +1332,7 @@ class MultiPanelDashboardCard extends HTMLElement {
         const fresh = wrapper.firstElementChild;
         if (fresh) {
           existing.replaceWith(fresh);
-          // Re-attach mower click handlers just on this subtree
           this._attachMowerListeners(fresh);
-          // Re-attach the more-info on the head
           const head = fresh.querySelector('[data-action="more-info"]');
           if (head) this._bindDataAction(head);
         }
@@ -1380,9 +1401,7 @@ class MultiPanelDashboardCard extends HTMLElement {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// EDITOR — Pi-hole style: Device → Entity → Name → Icon → Config
-// No custom tabs (HA provides Config / Visibility / Layout natively).
-// All sections are collapsible. Layout is a bottom section.
+// EDITOR
 // ════════════════════════════════════════════════════════════════════════════
 class MultiPanelDashboardCardEditor extends LitElement {
   static get properties() {
@@ -1401,8 +1420,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 
   async firstUpdated() {
-    // Fire-and-forget: attempt to load picker elements, then re-render.
-    // We never block render on this — a timeout ensures we always show the editor.
     const load = async () => {
       try {
         if (!customElements.get('ha-entity-picker')) {
@@ -1414,7 +1431,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
       this._loadedPickers = true;
       this.requestUpdate();
     };
-    // Always mark loaded after 3s maximum, even if the above fails
     const timeout = setTimeout(() => { this._loadedPickers = true; this.requestUpdate(); }, 3000);
     load().then(() => clearTimeout(timeout));
   }
@@ -1466,8 +1482,6 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 
   // ── Atomic editor widgets ─────────────────────────────────────────────────
-
-  // Simple entity picker (no device step) — for secondary entities like battery, energy, etc.
   _renderEntityPicker(value, onChange, domains, label) {
     return html`
       <div class="ed-field">
@@ -1552,6 +1566,24 @@ class MultiPanelDashboardCardEditor extends LitElement {
       </div>`;
   }
 
+  // ── Range slider widget ───────────────────────────────────────────────────
+  _range(label, value, min, max, step, onChange, unit) {
+    const val = parseFloat(value) || 0;
+    const pct = Math.round(((val - min) / (max - min)) * 100);
+    return html`
+      <div class="ed-field">
+        <div class="ed-range-header">
+          <label class="ed-label" style="margin:0">${label}</label>
+          <span class="ed-range-val">${val}${unit || ''}</span>
+        </div>
+        <input class="ed-range" type="range"
+          min="${min}" max="${max}" step="${step}"
+          .value="${String(val)}"
+          style="--range-pct:${pct}%"
+          @input="${(e) => onChange(parseFloat(e.target.value))}" />
+      </div>`;
+  }
+
   _section(id, title, count, content) {
     const open = !!this._openSections[id];
     return html`
@@ -1571,6 +1603,43 @@ class MultiPanelDashboardCardEditor extends LitElement {
   }
 
   // ── Section content builders ──────────────────────────────────────────────
+
+  // ── NEW: Appearance section ───────────────────────────────────────────────
+  _appearanceSectionContent() {
+    const cfg = this._config;
+    const isDefault = (cfg.theme === 'default' || !cfg.theme);
+    return html`
+      ${isDefault ? html`
+        ${this._toggle('Frosted Glass Mode', cfg.frosted_glass, (v) => this._set('frosted_glass', v))}
+        ${cfg.frosted_glass ? html`
+          <p class="hint">
+            The card background and all inner tiles use a translucent blur effect.
+            Works best when a dynamic wallpaper is visible behind Home Assistant.
+          </p>
+          ${this._range(
+            'Glass Opacity',
+            cfg.frosted_opacity !== undefined ? cfg.frosted_opacity : 0.52,
+            0.1, 0.9, 0.01,
+            (v) => this._set('frosted_opacity', v),
+            ''
+          )}
+          ${this._range(
+            'Blur Strength',
+            cfg.frosted_blur !== undefined ? cfg.frosted_blur : 22,
+            4, 40, 1,
+            (v) => this._set('frosted_blur', v),
+            'px'
+          )}
+        ` : ''}
+      ` : html`
+        <p class="hint">
+          Frosted Glass is only available with the <strong>Dark Navy</strong> theme.
+          Switch the Theme to Dark Navy in the Header section to enable it.
+        </p>
+      `}
+    `;
+  }
+
   _headerSectionContent() {
     const cfg = this._config;
     const themeOpts = Object.keys(THEMES).map(k => ({ val: k, label: THEMES[k].label }));
@@ -1848,34 +1917,34 @@ class MultiPanelDashboardCardEditor extends LitElement {
     `;
   }
 
-  // ── Main render — no custom tabs, just sections ───────────────────────────
+  // ── Main render ───────────────────────────────────────────────────────────
   render() {
     try {
       if (!this._config) return html``;
-      // Pickers load async — render immediately, they will appear when ready
       const cfg = this._config;
-    const counts = {
-      cameras:  (cfg.cameras || []).length,
-      switches: (cfg.switches || []).length,
-      sensors:  (cfg.sensors || []).length,
-      gauges:   (cfg.gauges || []).length,
-      power:    (cfg.power_circuits || []).length,
-    };
-    const deviceCount = (cfg.devices && cfg.devices.mower && cfg.devices.mower.enabled && cfg.devices.mower.entity) ? 1 : 0;
+      const counts = {
+        cameras:  (cfg.cameras || []).length,
+        switches: (cfg.switches || []).length,
+        sensors:  (cfg.sensors || []).length,
+        gauges:   (cfg.gauges || []).length,
+        power:    (cfg.power_circuits || []).length,
+      };
+      const deviceCount = (cfg.devices && cfg.devices.mower && cfg.devices.mower.enabled && cfg.devices.mower.entity) ? 1 : 0;
 
-    return html`
-      <div class="ed-root">
-        ${this._section('header',   'Header',             undefined,       this._headerSectionContent())}
-        ${this._section('cameras',  'Cameras',            counts.cameras,  this._camerasSectionContent())}
-        ${this._section('switches', 'Switches',           counts.switches, this._switchesSectionContent())}
-        ${this._section('sensors',  'Sensors',            counts.sensors,  this._sensorsSectionContent())}
-        ${this._section('climate',  'Climate (gauges)',   counts.gauges,   this._climateSectionContent())}
-        ${this._section('devices',  'Devices',            deviceCount,     this._devicesSectionContent())}
-        ${this._section('salt',     'Salt Level',         undefined,       this._saltSectionContent())}
-        ${this._section('power',    'Power Circuits',     counts.power,    this._powerSectionContent())}
-        ${this._section('layout',   'Layout',             undefined,       this._layoutSectionContent())}
-      </div>
-    `;
+      return html`
+        <div class="ed-root">
+          ${this._section('header',     'Header',           undefined,       this._headerSectionContent())}
+          ${this._section('appearance', '🎨 Appearance',    undefined,       this._appearanceSectionContent())}
+          ${this._section('cameras',    'Cameras',          counts.cameras,  this._camerasSectionContent())}
+          ${this._section('switches',   'Switches',         counts.switches, this._switchesSectionContent())}
+          ${this._section('sensors',    'Sensors',          counts.sensors,  this._sensorsSectionContent())}
+          ${this._section('climate',    'Climate (gauges)', counts.gauges,   this._climateSectionContent())}
+          ${this._section('devices',    'Devices',          deviceCount,     this._devicesSectionContent())}
+          ${this._section('salt',       'Salt Level',       undefined,       this._saltSectionContent())}
+          ${this._section('power',      'Power Circuits',   counts.power,    this._powerSectionContent())}
+          ${this._section('layout',     'Layout',           undefined,       this._layoutSectionContent())}
+        </div>
+      `;
     } catch(err) {
       console.error('[MPD-CARD editor render error]', err);
       return html`<div style="padding:16px;color:#ef4444;font-size:12px;font-family:monospace;white-space:pre-wrap">Editor error — check browser console (F12):\n${err && err.message ? err.message : String(err)}</div>`;
@@ -1915,12 +1984,49 @@ class MultiPanelDashboardCardEditor extends LitElement {
       }
       .ed-input.mono { font-family: 'DM Mono', monospace; font-size: 12px; }
 
+      /* Range slider */
+      .ed-range-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 6px;
+      }
+      .ed-range-val {
+        font-size: 12px; font-weight: 600;
+        color: var(--primary-color, #4fa3e0);
+        font-family: 'DM Mono', monospace;
+        min-width: 36px; text-align: right;
+      }
+      .ed-range {
+        -webkit-appearance: none;
+        width: 100%; height: 4px; border-radius: 2px; outline: none; cursor: pointer;
+        background: linear-gradient(
+          to right,
+          var(--primary-color, #4fa3e0) 0%,
+          var(--primary-color, #4fa3e0) var(--range-pct, 50%),
+          rgba(255,255,255,.12) var(--range-pct, 50%),
+          rgba(255,255,255,.12) 100%
+        );
+      }
+      .ed-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px; height: 16px; border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(79,163,224,.4);
+        cursor: pointer;
+      }
+      .ed-range::-moz-range-thumb {
+        width: 16px; height: 16px; border-radius: 50%; border: none;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(79,163,224,.4);
+        cursor: pointer;
+      }
+
       .hint {
         font-size: 12px;
         color: var(--secondary-text-color, rgba(255,255,255,.5));
         margin: 0 0 10px;
         line-height: 1.5;
       }
+      .hint strong { color: var(--primary-text-color, rgba(255,255,255,.8)); }
 
       ha-entity-picker, ha-device-picker, ha-icon-picker {
         display: block;
@@ -2077,7 +2183,7 @@ class MultiPanelDashboardCardEditor extends LitElement {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Camera stream sub-element (unchanged from v2.x)
+// Camera stream sub-element (unchanged)
 // ════════════════════════════════════════════════════════════════════════════
 class MpdCamStream extends LitElement {
   static get properties() {
@@ -2141,7 +2247,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type:             'multi-panel-dashboard-card',
   name:             'Multi-Panel Dashboard Card',
-  description:      'Unified dashboard card — header/cameras/sensors/climate/devices (mower)/salt/power — v3',
+  description:      'Unified dashboard card — header/cameras/sensors/climate/devices (mower)/salt/power — v3.2',
   preview:          true,
   documentationURL: 'https://github.com/robman2026/multi-panel-dashboard-card',
 });
